@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lotes Contratuais - SGMRP</title>
+    <meta name="description" content="Listagem completa dos lotes contratuais do sistema penitenciário">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="{{ url_for('dashboard') }}" class="logo">SGMRP</a>
+                <nav>
+                    <ul>
+                        <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                        <li><a href="{{ url_for('lotes') }}" class="active">Lotes</a></li>
+                        <li><a href="{{ url_for('relatorios') }}">Relatórios</a></li>
+                        <li><a href="#configuracoes">Configurações</a></li>
+                        <li><a href="#" id="logoutLink" style="color: #fed7d7;">Sair</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- Breadcrumb melhorado -->
+            <nav aria-label="Navegação" style="margin-bottom: 2.5rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.75rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+                <div style="display: flex; gap: 0.5rem; font-size: 0.95rem; color: var(--gray-500); align-items: center;">
+                    <span><a href="{{ url_for('dashboard') }}" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Dashboard</a></span>
+                    <span aria-hidden="true" style="font-size: 1.1em; opacity: 0.7;">/</span>
+                    <span aria-current="page" style="color: var(--primary-color); font-weight: 600;">Lotes Contratuais</span>
+                </div>
+            </nav>
+
+            <!-- Header da Página melhorado -->
+            <section style="margin-bottom: 2.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 2rem;">
+                    <div>
+                        <h1 style="margin-bottom: 0.5rem; color: var(--primary-color); font-size: 2.1rem; font-weight: 700; letter-spacing: -1px;">Lotes Contratuais</h1>
+                        <p style="color: var(--gray-600); margin: 0; font-size: 1.05rem;">Gerenciamento completo dos lotes e unidades prisionais</p>
+                    </div>
+                    <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                        <button class="btn btn-primary" id="novoLote" style="font-size: 1.08rem; padding: 0.7rem 1.3rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(59,130,246,0.08);">➕ Novo Lote</button>
+                        <button class="btn btn-secondary" id="editarLote" style="font-size: 1.08rem; padding: 0.7rem 1.3rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(108,117,125,0.08);">✏️ Editar Lote</button>
+                        <button class="btn btn-danger" id="excluirLote" style="font-size: 1.08rem; padding: 0.7rem 1.3rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(220,53,69,0.08); background-color: #dc3545; color: white;">🗑️ Excluir Lote</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filtros Avançados -->
+            <section class="fade-in" style="margin-bottom: 2rem;">
+                <div style="background: white; border-radius: 12px; padding: 1rem 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                    <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.125rem;">🔍</span>
+                            <span style="font-weight: 500; color: var(--gray-700); font-size: 0.875rem;">Filtros:</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="filtro-status" style="font-weight: 500; color: var(--gray-600); font-size: 0.875rem;">Status:</label>
+                            <select id="filtro-status" class="form-select" style="padding: 0.5rem 0.75rem; font-size: 0.875rem; border-radius: 6px;">
+                                <option value="">Todos</option>
+                                <option value="ativo">Ativo</option>
+                                <option value="inativo">Inativo</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="filtro-empresa" style="font-weight: 500; color: var(--gray-600); font-size: 0.875rem;">Empresa:</label>
+                            <select id="filtro-empresa" class="form-select" style="padding: 0.5rem 0.75rem; font-size: 0.875rem; border-radius: 6px;">
+                                <option value="">Todas</option>
+                                {% for empresa in empresas %}
+                                    <option value="{{ empresa|lower }}">{{ empresa }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label for="filtro-percentual" style="font-weight: 500; color: var(--gray-600); font-size: 0.875rem;">Executado:</label>
+                            <select id="filtro-percentual" class="form-select" style="padding: 0.5rem 0.75rem; font-size: 0.875rem; border-radius: 6px;">
+                                <option value="">Todos</option>
+                                <option value="alta">Alto (&gt;80%)</option>
+                                <option value="media">Médio (50-80%)</option>
+                                <option value="baixa">Baixo (&lt;50%)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Resumo dos Resultados -->
+            <section style="margin-bottom: 2rem;">
+                <div class="card">
+                    <div class="card-body" style="padding: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div>
+                                <span style="font-size: 0.875rem; color: var(--gray-600);">
+                                    Exibindo <strong id="resultados-count">{{ lotes|length }}</strong> de <strong>{{ lotes|length }}</strong> lotes
+                                </span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span style="font-size: 0.875rem; color: var(--gray-600);">Ordenar por:</span>
+                                <select id="ordenacao" class="form-select" style="width: auto; min-width: 150px;">
+                                    <option value="nome">Nome</option>
+                                    <option value="conformidade">Conformidade</option>
+                                    <option value="refeicoes">Nº Refeições</option>
+                                    <option value="atualizacao">Última Atualização</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Lista de Lotes -->
+            <section id="lista-lotes">
+                {% for lote in lotes %}
+                <div class="card fade-in lote-item" data-lote="{{ loop.index }}" data-status="{{ 'ativo' if lote.ativo else 'inativo' }}" data-empresa="{{ lote.empresa|lower }}" data-percentual="{{ lote.percentual_executado }}">
+                    <div class="card-body" style="padding: 2rem;">
+                        <div style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start;">
+                            <!-- Informações principais -->
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                    <h3 style="margin: 0; color: var(--primary-color);">Lote {{ loop.index }}</h3>
+                                    {% if lote.ativo %}
+                                    <div class="badge" style="background-color: var(--success-color); color: white; padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 500;">
+                                        ATIVO
+                                    </div>
+                                    {% else %}
+                                    <div class="badge" style="background-color: var(--danger-color); color: white; padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 500;">
+                                        INATIVO
+                                    </div>
+                                    {% endif %}
+                                    {% set percentual = lote.percentual_executado %}
+                                    {% if percentual < 50 %}
+                                        {% set cor_fundo = 'var(--success-color)' %}
+                                        {% set cor_texto = 'white' %}
+                                    {% elif percentual < 80 %}
+                                        {% set cor_fundo = 'var(--warning-color)' %}
+                                        {% set cor_texto = 'white' %}
+                                    {% elif percentual < 100 %}
+                                        {% set cor_fundo = '#ff6b35' %}
+                                        {% set cor_texto = 'white' %}
+                                    {% else %}
+                                        {% set cor_fundo = 'var(--danger-color)' %}
+                                        {% set cor_texto = 'white' %}
+                                    {% endif %}
+                                    <div style="background-color: {{ cor_fundo }}; color: {{ cor_texto }}; padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 500;">
+                                        {{ "%.1f"|format(lote.percentual_executado) }}% Executado
+                                    </div>
+                                </div>
+
+                                <div style="margin-bottom: 1.5rem;">
+                                    <p style="margin: 0; color: var(--gray-600);">
+                                        <strong>Empresa Responsável:</strong> {{ lote.empresa }}
+                                    </p>
+                                    <p style="margin: 0; color: var(--gray-600);">
+                                        <strong>Unidades:</strong> {{ lote.unidades|length }} unidades ativas
+                                    </p>
+                                    <p style="margin: 0; color: var(--gray-600);">
+                                        <strong>Última Atividade:</strong> {{ lote.ultima_atualizacao }}{% if lote.ultima_atividade %} - <em style="color: var(--primary-color);">{{ lote.ultima_atividade }}</em>{% endif %}
+                                    </p>
+                                </div>
+
+                                <!-- Estatísticas do Lote (simuladas) -->
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;">
+                                    <div style="text-align: center; padding: 1rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                        <div style="font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">{{ "{:,.2f}".format(lote.refeicoes_mes).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+                                        <div style="font-size: 0.75rem; color: var(--gray-600);">Refeições/Mês</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 1rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                        <div style="font-size: 1.25rem; font-weight: 600; color: var(--success-color);">R$ {{ "{:,.2f}".format(lote.custo_mes).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+                                        <div style="font-size: 0.75rem; color: var(--gray-600);">Custo/Mês</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 1rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                        <div style="font-size: 1.25rem; font-weight: 600; color: var(--warning-color);">R$ {{ "{:,.2f}".format(lote.desvio_mes).replace(',', 'X').replace('.', ',').replace('X', '.') }}</div>
+                                        <div style="font-size: 0.75rem; color: var(--gray-600);">Desvio/Mês</div>
+                                    </div>
+                                    <div style="text-align: center; padding: 1rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                        <div style="font-size: 1.25rem; font-weight: 600; color: var(--primary-color);">{{ lote.meses_cadastrados }}</div>
+                                        <div style="font-size: 0.75rem; color: var(--gray-600);">Meses Cadastrados</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ações -->
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: stretch; min-width: 150px;">
+                                    <a href="{{ url_for('lote_detalhes', lote_id=lote.id) }}" class="btn btn-primary btn-sm">
+                                    🔍 Ver Detalhes
+                                </a>
+                                <button class="btn btn-secondary btn-sm" onclick="ExportarDados({{ lote.id }})">
+                                                📤 Exportar Dados
+                                          </button>
+                                          <button class="btn btn-secondary btn-sm" onclick="alert('Funcionalidade de relatório para Lote {{ loop.index }} será implementada em versões futuras.')">
+                                              📊 Relatório
+                                          </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container text-center">
+            <p style="margin: 0; color: var(--gray-400); font-size: 0.875rem;">
+                © 2025 SGMRP - Sistema de Gerenciamento de Mapas de Refeições Penitenciário
+            </p>
+        </div>
+    </footer>
+
+    <!-- Modal Novo Lote -->
+
+    <div id="modal-novo-lote" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 16px; padding: 2rem; max-width: 1100px; width: 98%; box-shadow: 0 8px 32px rgba(0,0,0,0.18);">
+            <h2 style="margin-bottom: 1.5rem; color: var(--primary-color);">Novo Lote Contratual</h2>
+            <form id="form-novo-lote" autocomplete="off">
+                <div style="display: flex; flex-direction: row; gap: 2rem; margin-bottom: 2rem; flex-wrap: wrap;">
+                    <!-- Coluna 1: dados principais -->
+                    <div style="flex: 1 1 260px; min-width: 220px; display: flex; flex-direction: column; gap: 1rem;">
+                        <div>
+                            <label for="novo-lote-nome" class="form-label" style="font-weight: 500;">Nome do Lote</label>
+                            <input type="text" id="novo-lote-nome" name="nome_lote" class="form-input" placeholder="Digite o nome do lote" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="novo-lote-empresa" class="form-label" style="font-weight: 500;">Nome da Empresa</label>
+                            <input type="text" id="novo-lote-empresa" name="nome_empresa" class="form-input" placeholder="Digite o nome da empresa" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="novo-lote-contrato" class="form-label" style="font-weight: 500;">Número do Contrato</label>
+                            <input type="text" id="novo-lote-contrato" name="numero_contrato" class="form-input" placeholder="Digite o número do contrato" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="novo-lote-inicio" class="form-label" style="font-weight: 500;">Data de Início do Contrato</label>
+                            <input type="date" id="novo-lote-inicio" name="data_inicio" class="form-input" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="novo-lote-fim" class="form-label" style="font-weight: 500;">Data de Fim do Contrato</label>
+                            <input type="date" id="novo-lote-fim" name="data_fim" class="form-input" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="novo-lote-valor-contratual" class="form-label" style="font-weight: 500;">Valor Contratual (R$)</label>
+                            <input type="number" step="0.01" min="0" id="novo-lote-valor-contratual" name="valor_contratual" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                    </div>
+                    <!-- Coluna 2: unidades -->
+                    <div style="flex: 1 1 220px; min-width: 180px; display: flex; flex-direction: column; gap: 0.02rem;">
+                        <label class="form-label" style="font-weight: 500;">Unidades do Lote</label>
+                        <div id="unidades-lista" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                        <input type="text" id="input-unidade" class="form-input" placeholder="Digite o nome da unidade e pressione Enter" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        <small style="color: var(--gray-500);">Pressione Enter para adicionar cada unidade. Clique no X para remover.</small>
+                    </div>
+                    <!-- Coluna 3: preços -->
+                    <div style="flex: 1 1 320px; min-width: 220px; display: flex; flex-direction: column; gap: 1rem;">
+                        <label class="form-label" style="font-weight: 500;">Preços das Refeições (R$)</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label for="preco-cafe-interno" style="font-size: 0.95em;">Café Interno</label>
+                                <input type="number" step="0.01" min="0" id="preco-cafe-interno" name="preco_cafe_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-cafe-funcionario" style="font-size: 0.95em;">Café Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="preco-cafe-funcionario" name="preco_cafe_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-almoco-interno" style="font-size: 0.95em;">Almoço Interno</label>
+                                <input type="number" step="0.01" min="0" id="preco-almoco-interno" name="preco_almoco_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-almoco-funcionario" style="font-size: 0.95em;">Almoço Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="preco-almoco-funcionario" name="preco_almoco_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-lanche-interno" style="font-size: 0.95em;">Lanche Interno</label>
+                                <input type="number" step="0.01" min="0" id="preco-lanche-interno" name="preco_lanche_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-lanche-funcionario" style="font-size: 0.95em;">Lanche Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="preco-lanche-funcionario" name="preco_lanche_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-jantar-interno" style="font-size: 0.95em;">Jantar Interno</label>
+                                <input type="number" step="0.01" min="0" id="preco-jantar-interno" name="preco_jantar_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="preco-jantar-funcionario" style="font-size: 0.95em;">Jantar Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="preco-jantar-funcionario" name="preco_jantar_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" id="btn-cancelar-novo-lote" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-adicionar-novo-lote" class="btn btn-primary">Adicionar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Editar Lote -->
+    <div id="modal-editar-lote" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 16px; padding: 2rem; max-width: 1100px; width: 98%; box-shadow: 0 8px 32px rgba(0,0,0,0.18);">
+            <h2 style="margin-bottom: 1.5rem; color: var(--primary-color);">Editar Lote Contratual</h2>
+            <form id="form-editar-lote" autocomplete="off">
+                <div style="display: flex; flex-direction: row; gap: 2rem; margin-bottom: 2rem; flex-wrap: wrap;">
+                    <!-- Coluna 1: dados principais -->
+                    <div style="flex: 1 1 260px; min-width: 220px; display: flex; flex-direction: column; gap: 1rem;">
+                        <div>
+                            <label for="editar-lote-selecao" class="form-label" style="font-weight: 500;">Selecione o Lote</label>
+                            <select id="editar-lote-selecao" class="form-select" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                                <option value="">-- Selecione um lote --</option>
+                                {% for lote in lotes %}
+                                <option value="{{ lote.id }}">{{ lote.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="editar-lote-empresa" class="form-label" style="font-weight: 500;">Nome da Empresa</label>
+                            <input type="text" id="editar-lote-empresa" name="nome_empresa" class="form-input" placeholder="Digite o nome da empresa" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="editar-lote-contrato" class="form-label" style="font-weight: 500;">Número do Contrato</label>
+                            <input type="text" id="editar-lote-contrato" name="numero_contrato" class="form-input" placeholder="Digite o número do contrato" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="editar-lote-inicio" class="form-label" style="font-weight: 500;">Data de Início do Contrato</label>
+                            <input type="date" id="editar-lote-inicio" name="data_inicio" class="form-input" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="editar-lote-fim" class="form-label" style="font-weight: 500;">Data de Fim do Contrato</label>
+                            <input type="date" id="editar-lote-fim" name="data_fim" class="form-input" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label for="editar-lote-valor-contratual" class="form-label" style="font-weight: 500;">Valor Contratual (R$)</label>
+                            <input type="number" step="0.01" min="0" id="editar-lote-valor-contratual" name="valor_contratual" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-weight: 500;">Status</label>
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" id="editar-lote-ativo-sim" name="ativo" value="true" checked style="cursor: pointer;">
+                                    <span>Ativo</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" id="editar-lote-ativo-nao" name="ativo" value="false" style="cursor: pointer;">
+                                    <span>Inativo</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Coluna 2: unidades -->
+                    <div style="flex: 1 1 220px; min-width: 180px; display: flex; flex-direction: column; gap: 0.02rem;">
+                        <label class="form-label" style="font-weight: 500;">Unidades do Lote</label>
+                        <div id="editar-unidades-lista" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                        <input type="text" id="editar-input-unidade" class="form-input" placeholder="Digite o nome da unidade e pressione Enter" style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        <small style="color: var(--gray-500);">Pressione Enter para adicionar novas unidades. Unidades existentes não podem ser removidas.</small>
+                    </div>
+                    <!-- Coluna 3: preços -->
+                    <div style="flex: 1 1 320px; min-width: 220px; display: flex; flex-direction: column; gap: 1rem;">
+                        <label class="form-label" style="font-weight: 500;">Preços das Refeições (R$)</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <div>
+                                <label for="editar-preco-cafe-interno" style="font-size: 0.95em;">Café Interno</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-cafe-interno" name="preco_cafe_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-cafe-funcionario" style="font-size: 0.95em;">Café Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-cafe-funcionario" name="preco_cafe_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-almoco-interno" style="font-size: 0.95em;">Almoço Interno</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-almoco-interno" name="preco_almoco_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-almoco-funcionario" style="font-size: 0.95em;">Almoço Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-almoco-funcionario" name="preco_almoco_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-lanche-interno" style="font-size: 0.95em;">Lanche Interno</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-lanche-interno" name="preco_lanche_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-lanche-funcionario" style="font-size: 0.95em;">Lanche Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-lanche-funcionario" name="preco_lanche_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-jantar-interno" style="font-size: 0.95em;">Jantar Interno</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-jantar-interno" name="preco_jantar_interno" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                            <div>
+                                <label for="editar-preco-jantar-funcionario" style="font-size: 0.95em;">Jantar Funcionário</label>
+                                <input type="number" step="0.01" min="0" id="editar-preco-jantar-funcionario" name="preco_jantar_funcionario" class="form-input" placeholder="0,00" required style="width: 100%; padding: 0.4rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" id="btn-cancelar-editar-lote" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-salvar-editar-lote" class="btn btn-primary">Salvar Alterações</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Dados dos lotes carregados do backend
+        const lotesData = {{ lotes|tojson|safe }};
+
+        // Campo dinâmico de unidades do lote
+        function adicionarCampoUnidade(nome = "") {
+            const lista = document.getElementById('unidades-lista');
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.gap = '0.5rem';
+            div.className = 'unidade-item';
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-input';
+            input.value = nome;
+            input.name = 'unidades[]';
+            input.placeholder = 'Nome da unidade';
+            input.required = true;
+            input.style.flex = '1';
+            input.style.padding = '0.5rem';
+            input.style.borderRadius = '6px';
+            input.style.border = '1px solid var(--gray-300)';
+            const btnRemover = document.createElement('button');
+            btnRemover.type = 'button';
+            btnRemover.textContent = '✖';
+            btnRemover.title = 'Remover unidade';
+            btnRemover.style.background = 'none';
+            btnRemover.style.border = 'none';
+            btnRemover.style.color = '#e53e3e';
+            btnRemover.style.fontSize = '1.1rem';
+            btnRemover.style.cursor = 'pointer';
+            btnRemover.addEventListener('click', function() {
+                lista.removeChild(div);
+            });
+            div.appendChild(input);
+            div.appendChild(btnRemover);
+            lista.appendChild(div);
+        }
+
+        // Campo dinâmico de unidades do lote (modal editar) - apenas exibição
+        function adicionarCampoUnidadeEditar(nome = "", unidadeId = null, isExisting = true) {
+            const lista = document.getElementById('editar-unidades-lista');
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.gap = '0.5rem';
+            div.className = 'unidade-item-editar';
+            if (unidadeId) div.dataset.unidadeId = unidadeId;
+            if (isExisting) div.dataset.existing = 'true';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-input';
+            input.value = nome;
+            input.name = 'unidades[]';
+            input.placeholder = 'Nome da unidade';
+            input.required = true;
+            input.style.flex = '1';
+            input.style.padding = '0.5rem';
+            input.style.borderRadius = '6px';
+            input.style.border = '1px solid var(--gray-300)';
+            input.readOnly = true; // Unidades não podem ser renomeadas
+            input.style.backgroundColor = isExisting ? '#f3f4f6' : '#fff';
+            
+            // Apenas unidades NOVAS podem ser removidas
+            if (!isExisting) {
+                const btnRemover = document.createElement('button');
+                btnRemover.type = 'button';
+                btnRemover.textContent = '✖';
+                btnRemover.title = 'Remover unidade';
+                btnRemover.style.background = 'none';
+                btnRemover.style.border = 'none';
+                btnRemover.style.color = '#e53e3e';
+                btnRemover.style.fontSize = '1.1rem';
+                btnRemover.style.cursor = 'pointer';
+                btnRemover.addEventListener('click', function() {
+                    lista.removeChild(div);
+                });
+                div.appendChild(input);
+                div.appendChild(btnRemover);
+            } else {
+                // Unidades existentes: apenas exibição, sem botão de remover
+                div.appendChild(input);
+            }
+            
+            lista.appendChild(div);
+        }
+
+        // Carregar dados do lote selecionado
+        function carregarDadosLote(loteId) {
+            const lote = lotesData.find(l => l.id === parseInt(loteId));
+            if (!lote) {
+                alert('Lote não encontrado');
+                return;
+            }
+
+            // Preencher campos básicos
+            document.getElementById('editar-lote-empresa').value = lote.empresa || '';
+            document.getElementById('editar-lote-contrato').value = lote.numero_contrato || lote.contrato || '';
+            document.getElementById('editar-lote-inicio').value = lote.data_inicio || lote.inicio_contrato || '';
+            document.getElementById('editar-lote-fim').value = lote.data_fim || lote.fim_contrato || '';
+            document.getElementById('editar-lote-valor-contratual').value = lote.valor_contratual || 0;
+            
+            // Status
+            if (lote.ativo) {
+                document.getElementById('editar-lote-ativo-sim').checked = true;
+            } else {
+                document.getElementById('editar-lote-ativo-nao').checked = true;
+            }
+
+            // Limpar unidades anteriores
+            const listaUnidades = document.getElementById('editar-unidades-lista');
+            listaUnidades.innerHTML = '';
+
+            // TODO: Carregar nomes das unidades (por enquanto só mostra IDs)
+            // Isso será implementado quando tivermos acesso aos dados de unidades
+            if (lote.unidades && Array.isArray(lote.unidades)) {
+                lote.unidades.forEach(unidadeId => {
+                    adicionarCampoUnidadeEditar(`Unidade ID ${unidadeId}`, unidadeId, true); // true = unidade existente
+                });
+            }
+
+            // Preencher preços
+            const precos = lote.precos || {};
+            
+            // Função auxiliar para extrair valor
+            const getPreco = (refeicao, tipo) => {
+                if (typeof precos[refeicao] === 'object') {
+                    return precos[refeicao][tipo] || 0;
+                }
+                const key = `${refeicao}_${tipo}`;
+                return precos[key] || 0;
+            };
+
+            document.getElementById('editar-preco-cafe-interno').value = getPreco('cafe', 'interno');
+            document.getElementById('editar-preco-cafe-funcionario').value = getPreco('cafe', 'funcionario');
+            document.getElementById('editar-preco-almoco-interno').value = getPreco('almoco', 'interno');
+            document.getElementById('editar-preco-almoco-funcionario').value = getPreco('almoco', 'funcionario');
+            document.getElementById('editar-preco-lanche-interno').value = getPreco('lanche', 'interno');
+            document.getElementById('editar-preco-lanche-funcionario').value = getPreco('lanche', 'funcionario');
+            document.getElementById('editar-preco-jantar-interno').value = getPreco('jantar', 'interno');
+            document.getElementById('editar-preco-jantar-funcionario').value = getPreco('jantar', 'funcionario');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Campo de adicionar unidade dinâmica
+            var inputUnidade = document.getElementById('input-unidade');
+            if (inputUnidade) {
+                inputUnidade.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const nome = inputUnidade.value.trim();
+                        if (nome.length > 0) {
+                            adicionarCampoUnidade(nome);
+                            inputUnidade.value = '';
+                        }
+                    }
+                });
+            }
+
+            // Campo de adicionar unidade no modal editar
+            var inputUnidadeEditar = document.getElementById('editar-input-unidade');
+            if (inputUnidadeEditar) {
+                inputUnidadeEditar.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const nome = inputUnidadeEditar.value.trim();
+                        if (nome.length > 0) {
+                            adicionarCampoUnidadeEditar(nome, null, false); // false = nova unidade (pode ser removida)
+                            inputUnidadeEditar.value = '';
+                        }
+                    }
+                });
+            }
+            
+            // Observação: a verificação via localStorage foi removida para
+            // evitar redirecionamentos indesejados quando a sessão Flask
+            // já está ativa. A autenticação deve ser verificada no servidor.
+
+            // Logout
+            var logoutBtn = document.getElementById('logoutLink');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (confirm('Tem certeza que deseja sair do sistema?')) {
+                        localStorage.removeItem('sgmrp_usuario');
+                        localStorage.removeItem('sgmrp_remember');
+                        window.location.href = "{{ url_for('logout') }}";
+                    }
+                });
+            }
+
+            // Busca em tempo real
+            var buscaInput = document.getElementById('filtro-busca-lote');
+            if (buscaInput) {
+                buscaInput.addEventListener('input', function() {
+                    applyFilters();
+                });
+            }
+
+            // Ordenação
+            var ordenacaoSelect = document.getElementById('ordenacao');
+            if (ordenacaoSelect) {
+                ordenacaoSelect.addEventListener('change', function() {
+                    sortLotes(this.value);
+                });
+            }
+
+            // Aplicar filtros automaticamente ao mudar qualquer select
+            var filtroStatus = document.getElementById('filtro-status');
+            var filtroEmpresa = document.getElementById('filtro-empresa');
+            var filtroPercentual = document.getElementById('filtro-percentual');
+            
+            if (filtroStatus) {
+                filtroStatus.addEventListener('change', applyFilters);
+            }
+            if (filtroEmpresa) {
+                filtroEmpresa.addEventListener('change', applyFilters);
+            }
+            if (filtroPercentual) {
+                filtroPercentual.addEventListener('change', applyFilters);
+            }
+
+            // Botão Novo Lote - abrir modal
+            var novoLoteBtn = document.getElementById('novoLote');
+            var modalNovoLote = document.getElementById('modal-novo-lote');
+            var btnCancelarNovoLote = document.getElementById('btn-cancelar-novo-lote');
+            var btnAdicionarNovoLote = document.getElementById('btn-adicionar-novo-lote');
+            if (novoLoteBtn && modalNovoLote) {
+                novoLoteBtn.addEventListener('click', function() {
+                    modalNovoLote.style.display = 'block';
+                });
+            }
+            if (btnCancelarNovoLote && modalNovoLote) {
+                btnCancelarNovoLote.addEventListener('click', function() {
+                    modalNovoLote.style.display = 'none';
+                });
+            }
+
+            // Botão Editar Lote - abrir modal
+            var editarLoteBtn = document.getElementById('editarLote');
+            var modalEditarLote = document.getElementById('modal-editar-lote');
+            var btnCancelarEditarLote = document.getElementById('btn-cancelar-editar-lote');
+            var btnSalvarEditarLote = document.getElementById('btn-salvar-editar-lote');
+            
+            if (editarLoteBtn && modalEditarLote) {
+                editarLoteBtn.addEventListener('click', function() {
+                    // Limpar seleção e campos
+                    document.getElementById('editar-lote-selecao').value = '';
+                    document.getElementById('editar-unidades-lista').innerHTML = '';
+                    modalEditarLote.style.display = 'block';
+                });
+            }
+            
+            if (btnCancelarEditarLote && modalEditarLote) {
+                btnCancelarEditarLote.addEventListener('click', function() {
+                    modalEditarLote.style.display = 'none';
+                });
+            }
+
+            // Seletor de lote - carregar dados quando selecionado
+            var seletorLote = document.getElementById('editar-lote-selecao');
+            if (seletorLote) {
+                seletorLote.addEventListener('change', function() {
+                    const loteId = this.value;
+                    if (loteId) {
+                        carregarDadosLote(loteId);
+                    } else {
+                        // Limpar campos se desselecionar
+                        document.getElementById('editar-unidades-lista').innerHTML = '';
+                    }
+                });
+            }
+
+            // Submit do formulário de edição
+            var formEditarLote = document.getElementById('form-editar-lote');
+            if (formEditarLote) {
+                formEditarLote.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const loteId = document.getElementById('editar-lote-selecao').value;
+                    if (!loteId) {
+                        alert('Selecione um lote para editar');
+                        return;
+                    }
+
+                    // Coletar dados do formulário
+                    const nome_empresa = document.getElementById('editar-lote-empresa').value.trim();
+                    const numero_contrato = document.getElementById('editar-lote-contrato').value.trim();
+                    const data_inicio = document.getElementById('editar-lote-inicio').value;
+                    const data_fim = document.getElementById('editar-lote-fim').value;
+                    const valor_contratual = document.getElementById('editar-lote-valor-contratual').value;
+                    const ativo = document.getElementById('editar-lote-ativo-sim').checked ? 'true' : 'false';
+                    
+                    // Coletar novas unidades (apenas as que não são existentes)
+                    const unidadeInputs = Array.from(document.querySelectorAll('#editar-unidades-lista .unidade-item-editar'));
+                    const novas_unidades = [];
+                    unidadeInputs.forEach(div => {
+                        if (!div.dataset.existing || div.dataset.existing !== 'true') {
+                            const input = div.querySelector('input[name="unidades[]"]');
+                            if (input && input.value.trim()) {
+                                novas_unidades.push(input.value.trim());
+                            }
+                        }
+                    });
+                    
+                    // Coletar preços
+                    const precos = {
+                        cafe: {
+                            interno: document.getElementById('editar-preco-cafe-interno').value,
+                            funcionario: document.getElementById('editar-preco-cafe-funcionario').value
+                        },
+                        almoco: {
+                            interno: document.getElementById('editar-preco-almoco-interno').value,
+                            funcionario: document.getElementById('editar-preco-almoco-funcionario').value
+                        },
+                        lanche: {
+                            interno: document.getElementById('editar-preco-lanche-interno').value,
+                            funcionario: document.getElementById('editar-preco-lanche-funcionario').value
+                        },
+                        jantar: {
+                            interno: document.getElementById('editar-preco-jantar-interno').value,
+                            funcionario: document.getElementById('editar-preco-jantar-funcionario').value
+                        }
+                    };
+                    
+                    // Validação básica
+                    if (!nome_empresa || !numero_contrato || !data_inicio || !data_fim) {
+                        alert('Preencha todos os campos obrigatórios.');
+                        return;
+                    }
+                    
+                    // Enviar para backend
+                    try {
+                        const resp = await fetch(`/api/editar-lote/${loteId}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({ 
+                                nome_empresa, 
+                                numero_contrato, 
+                                data_inicio,
+                                data_fim,
+                                valor_contratual,
+                                ativo,
+                                precos,
+                                novas_unidades
+                            })
+                        });
+                        const data = await resp.json();
+                        if (resp.ok && data.success) {
+                            showNotification('success', 'Lote atualizado!', 'As alterações foram salvas com sucesso.');
+                            modalEditarLote.style.display = 'none';
+                            setTimeout(() => window.location.reload(), 1200);
+                        } else {
+                            showNotification('error', 'Erro ao editar lote', data.error || 'Erro ao salvar alterações.');
+                        }
+                    } catch (err) {
+                        alert('Erro de conexão com o servidor.');
+                    }
+                });
+            }
+
+            if (btnAdicionarNovoLote && modalNovoLote) {
+                // Substituir o submit padrão para não recarregar a página
+                var formNovoLote = document.getElementById('form-novo-lote');
+                if (formNovoLote) {
+                    formNovoLote.addEventListener('submit', async function(e) {
+                        e.preventDefault();
+                        // Coletar dados do formulário
+                        const nome_lote = document.getElementById('novo-lote-nome').value.trim();
+                        const nome_empresa = document.getElementById('novo-lote-empresa').value.trim();
+                        const numero_contrato = document.getElementById('novo-lote-contrato').value.trim();
+                        const data_inicio = document.getElementById('novo-lote-inicio').value;
+                        const data_fim = document.getElementById('novo-lote-fim').value;
+                        const valor_contratual = document.getElementById('novo-lote-valor-contratual').value;
+                        // Unidades
+                        const unidadeInputs = Array.from(document.querySelectorAll('#unidades-lista input[name="unidades[]"]'));
+                        const unidades = unidadeInputs.map(i => i.value.trim()).filter(Boolean);
+                        // Preços
+                        const precos = {
+                            cafe: {
+                                interno: document.getElementById('preco-cafe-interno').value,
+                                funcionario: document.getElementById('preco-cafe-funcionario').value
+                            },
+                            almoco: {
+                                interno: document.getElementById('preco-almoco-interno').value,
+                                funcionario: document.getElementById('preco-almoco-funcionario').value
+                            },
+                            lanche: {
+                                interno: document.getElementById('preco-lanche-interno')?.value || '',
+                                funcionario: document.getElementById('preco-lanche-funcionario')?.value || ''
+                            },
+                            jantar: {
+                                interno: document.getElementById('preco-jantar-interno')?.value || '',
+                                funcionario: document.getElementById('preco-jantar-funcionario')?.value || ''
+                            }
+                        };
+                        // Validação: nenhum campo pode estar vazio
+                        let erro = '';
+                        if (!nome_lote || !nome_empresa || !numero_contrato || !data_inicio || !data_fim) {
+                            erro = 'Preencha todos os campos obrigatórios.';
+                        } else if (unidades.length === 0 || unidadeInputs.some(i => !i.value.trim())) {
+                            erro = 'Adicione pelo menos uma unidade e não deixe campos de unidade em branco.';
+                        } else {
+                            for (const grupo in precos) {
+                                for (const tipo in precos[grupo]) {
+                                    if (!precos[grupo][tipo] || isNaN(Number(precos[grupo][tipo]))) {
+                                        erro = 'Preencha todos os campos de preço corretamente.';
+                                        break;
+                                    }
+                                }
+                                if (erro) break;
+                            }
+                        }
+                        if (erro) {
+                            alert(erro);
+                            return;
+                        }
+                        // Enviar para backend
+                        try {
+                            const resp = await fetch('/api/novo-lote', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'same-origin',
+                                body: JSON.stringify({ nome_lote, nome_empresa, numero_contrato, data_inicio, data_fim, valor_contratual, precos, unidades })
+                            });
+                            const data = await resp.json();
+                            if (resp.ok && data.success) {
+                                showNotification('success', 'Lote cadastrado!', 'O novo lote foi adicionado com sucesso.');
+                                modalNovoLote.style.display = 'none';
+                                setTimeout(() => window.location.reload(), 1200);
+                            } else {
+                                showNotification('error', 'Erro ao cadastrar lote', data.error || 'Erro ao cadastrar lote.');
+                            }
+                        } catch (err) {
+                            alert('Erro de conexão com o servidor.');
+                        }
+                    });
+                }
+            }
+            // Fechar modal ao clicar fora do conteúdo
+            if (modalNovoLote) {
+                modalNovoLote.addEventListener('click', function(e) {
+                    if (e.target === modalNovoLote) {
+                        modalNovoLote.style.display = 'none';
+                    }
+                });
+            }
+
+            // Fechar modal de edição ao clicar fora
+            if (modalEditarLote) {
+                modalEditarLote.addEventListener('click', function(e) {
+                    if (e.target === modalEditarLote) {
+                        modalEditarLote.style.display = 'none';
+                    }
+                });
+            }
+
+            // Botão Exportar Dados (se existir)
+            var exportarDadosBtn = document.getElementById('exportarDados');
+            if (exportarDadosBtn) {
+                exportarDadosBtn.addEventListener('click', function() {
+                    alert('Funcionalidade de exportação será implementada em versões futuras.\n\nFormatos disponíveis: Excel, PDF, CSV');
+                });
+            }
+
+            // Animações
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            }, observerOptions);
+            document.querySelectorAll('.fade-in').forEach(el => {
+                el.style.opacity = '0';
+                el.style.transform = 'translateY(30px)';
+                el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                observer.observe(el);
+            });
+
+            // Placeholder para links de relatórios e configurações
+            document.addEventListener('click', function(e) {
+                if (e.target.closest('a[href="#relatorios"]')) {
+                    e.preventDefault();
+                    alert('Módulo de Relatórios será implementado na próxima versão do SGMRP.');
+                }
+                if (e.target.closest('a[href="#configuracoes"]')) {
+                    e.preventDefault();
+                    alert('Módulo de Configurações será implementado na próxima versão do SGMRP.');
+                }
+            });
+        });
+
+        function applyFilters() {
+            const busca = document.getElementById('filtro-busca-lote')?.value.toLowerCase() || '';
+            const status = document.getElementById('filtro-status')?.value || '';
+            const empresa = document.getElementById('filtro-empresa')?.value || '';
+            const percentual = document.getElementById('filtro-percentual')?.value || '';
+
+            const lotes = document.querySelectorAll('.lote-item');
+            let visibleCount = 0;
+
+            lotes.forEach(lote => {
+                let show = true;
+
+                // Filtro de busca
+                if (busca) {
+                    const text = lote.textContent.toLowerCase();
+                    show = show && text.includes(busca);
+                }
+
+                // Filtro de status
+                if (status) {
+                    show = show && lote.dataset.status === status;
+                }
+
+                // Filtro de empresa
+                if (empresa) {
+                    show = show && lote.dataset.empresa === empresa;
+                }
+
+                // Filtro de percentual executado
+                if (percentual) {
+                    const perc = parseFloat(lote.dataset.percentual);
+                    switch(percentual) {
+                        case 'alta':
+                            show = show && perc > 80;
+                            break;
+                        case 'media':
+                            show = show && perc >= 50 && perc <= 80;
+                            break;
+                        case 'baixa':
+                            show = show && perc < 50;
+                            break;
+                    }
+                }
+
+                if (show) {
+                    lote.style.display = 'block';
+                    visibleCount++;
+                } else {
+                    lote.style.display = 'none';
+                }
+            });
+
+            var resultadosCount = document.getElementById('resultados-count');
+            if (resultadosCount) {
+                resultadosCount.textContent = visibleCount;
+            }
+        }
+
+        function clearFilters() {
+            if (document.getElementById('filtro-busca-lote')) document.getElementById('filtro-busca-lote').value = '';
+            if (document.getElementById('filtro-status')) document.getElementById('filtro-status').value = '';
+            if (document.getElementById('filtro-empresa')) document.getElementById('filtro-empresa').value = '';
+            if (document.getElementById('filtro-percentual')) document.getElementById('filtro-percentual').value = '';
+            applyFilters();
+        }
+
+        function sortLotes(criteria) {
+            const container = document.getElementById('lista-lotes');
+            const lotes = Array.from(container.querySelectorAll('.lote-item'));
+
+            lotes.sort((a, b) => {
+                switch(criteria) {
+                    case 'nome':
+                        const nomeA = a.querySelector('h3').textContent;
+                        const nomeB = b.querySelector('h3').textContent;
+                        return nomeA.localeCompare(nomeB);
+                    case 'percentual':
+                        const percA = parseFloat(a.dataset.percentual);
+                        const percB = parseFloat(b.dataset.percentual);
+                        return percB - percA; // Decrescente
+                    case 'refeicoes':
+                        const refA = parseInt(a.querySelector('[data-refeicoes]')?.dataset.refeicoes || a.textContent.match(/(\d+,\d+)/)?.[1]?.replace(',', '') || '0');
+                        const refB = parseInt(b.querySelector('[data-refeicoes]')?.dataset.refeicoes || b.textContent.match(/(\d+,\d+)/)?.[1]?.replace(',', '') || '0');
+                        return refB - refA; // Decrescente
+                    case 'atualizacao':
+                        return Math.random() - 0.5;
+                    default:
+                        return 0;
+                }
+            });
+
+            lotes.forEach(lote => container.removeChild(lote));
+            lotes.forEach(lote => container.appendChild(lote));
+        }
+
+        function ExportarDados(loteId) {
+            // Montar nome do arquivo
+            const nomeArquivo = `lote_${loteId}_completo.xlsx`;
+            
+            // Montar URL da exportação sem filtros (exporta tudo)
+            const params = new URLSearchParams();
+            params.append('lote_id', loteId);
+            // Não passar data_inicio, data_fim ou unidades = exporta tudo
+            
+            // Mostrar notificação de processamento
+            showNotification('warning', 'Gerando arquivo...', 'Exportando todos os dados do lote. Aguarde...', false);
+            
+            // Chamar rota Flask para exportar Excel
+            fetch(`/exportar-tabela?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Erro ao gerar arquivo');
+                    return response.blob();
+                })
+                .then(blob => {
+                    // Criar link para download
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = nomeArquivo;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    
+                    // Fechar notificação anterior e mostrar sucesso
+                    const existingNotification = document.querySelector('.notification');
+                    if (existingNotification) existingNotification.remove();
+                    showNotification('success', 'Download concluído!', `Arquivo ${nomeArquivo} exportado com sucesso.`);
+                })
+                .catch(() => {
+                    // Fechar notificação anterior e mostrar erro
+                    const existingNotification = document.querySelector('.notification');
+                    if (existingNotification) existingNotification.remove();
+                    showNotification('error', 'Erro ao exportar', 'Não foi possível gerar o arquivo Excel. Tente novamente.');
+                });
+        }
+
+        function gerarRelatorio(loteId) {
+            alert(`Funcionalidade de relatório para Lote ${loteId} será implementada em versões futuras.`);
+        }
+
+        // Sistema de Notificações (igual ao lote-detalhes.html)
+function showNotification(type, title, message, autoClose = true) {
+    // Remover notificação existente se houver
+    const existingNotification = document.querySelector('.notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    let icon = '📢';
+    if (type === 'success') icon = '✅';
+    else if (type === 'warning') icon = '⚠️';
+    else if (type === 'error') icon = '❌';
+    notification.innerHTML = `
+        <div class="notification-content">
+            <div class="notification-icon">${icon}</div>
+            <div class="notification-text">
+                <strong>${title}</strong>
+                ${message ? '<br>' + message : ''}
+            </div>
+            <button type="button" class="notification-close" onclick="closeNotification(this)">×</button>
+        </div>
+    `;
+    document.body.appendChild(notification);
+    if (autoClose) {
+        const duration = type === 'error' ? 8000 : 5000;
+        setTimeout(() => {
+            closeNotification(notification.querySelector('.notification-close'));
+        }, duration);
+    }
+}
+function closeNotification(button) {
+    const notification = button.closest('.notification');
+    if (notification) {
+        notification.classList.add('closing');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }
+}
+    </script>
+    <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-analytics.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+        apiKey: "AIzaSyAp2Xg1g5MwxuD3m6QlroJVmi6V6SEYeGo",
+        authDomain: "sgmrp-sfa-seap.firebaseapp.com",
+        projectId: "sgmrp-sfa-seap",
+        storageBucket: "sgmrp-sfa-seap.firebasestorage.app",
+        messagingSenderId: "890046403125",
+        appId: "1:890046403125:web:36c3cb60d4e6960f1a977c",
+        measurementId: "G-Z0KXSCHS4Q"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    </script>
+</body>
+</html>

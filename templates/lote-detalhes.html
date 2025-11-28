@@ -1,0 +1,3426 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalhes do Lote - SGMRP</title>
+    <meta name="description" content="Detalhes do lote contratual com mapas de refeições e indicadores">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Notificações estilizadas */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: slideInRight 0.5s ease-out;
+        }
+
+        .notification-content {
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            min-width: 300px;
+            max-width: 450px;
+            color: white;
+        }
+
+        .notification-success .notification-content {
+            background: #16a34a;
+        }
+
+        .notification-warning .notification-content {
+            background: #f59e0b;
+        }
+
+        .notification-error .notification-content {
+            background: #dc2626;
+        }
+
+        .notification-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .notification-text {
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            margin-left: 0.5rem;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+
+        .notification-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+            }
+        }
+
+        .notification.closing {
+            animation: slideOutRight 0.3s ease-in forwards;
+        }
+
+        /* Responsividade */
+        @media (max-width: 480px) {
+            .notification {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+            }
+            
+            .notification-content {
+                min-width: auto;
+                max-width: none;
+            }
+        }
+
+        /* Estilos para tabela editável estilo Excel */
+        .tabela-manual {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 0.875rem;
+            margin-top: 1.5rem;
+            background: white;
+            border: 2px solid var(--gray-300);
+        }
+
+        .tabela-manual th {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .tabela-manual td {
+            border: 1px solid var(--gray-300);
+            padding: 0;
+            position: relative;
+        }
+
+        .tabela-manual td.data-column {
+            background: var(--gray-50);
+            text-align: center;
+            font-weight: 500;
+            color: var(--gray-700);
+            padding: 0.5rem;
+            width: 100px;
+        }
+
+        .tabela-manual input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            padding: 0.5rem;
+            font-size: 0.875rem;
+            text-align: center;
+            background: transparent;
+            min-height: 40px;
+        }
+
+        .tabela-manual input:focus {
+            background: #e3f2fd;
+            box-shadow: inset 0 0 0 2px var(--primary-color);
+        }
+
+        .tabela-manual input:hover {
+            background: var(--gray-50);
+        }
+
+        .tabela-manual tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .tabela-container {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+        }
+
+        .tabela-manual tbody tr:nth-child(even) {
+            background: rgba(0, 0, 0, 0.02);
+        }
+
+        .tabela-manual tbody tr:nth-child(even):hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        /* Estilos para células selecionadas */
+        .tabela-manual input.selected {
+            background: #e3f2fd !important;
+            box-shadow: inset 0 0 0 2px var(--primary-color) !important;
+        }
+
+        .tabela-manual input.paste-highlight {
+            background: #d4edda !important;
+            animation: pasteFlash 1s ease-out;
+        }
+
+        @keyframes pasteFlash {
+            0% { background: #28a745 !important; }
+            100% { background: #d4edda !important; }
+        }
+
+        /* Adicionar dica visual para paste */
+        .paste-hint {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tabela-manual td:hover .paste-hint {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <a href="{{ url_for('dashboard') }}" class="logo">SGMRP</a>
+                <nav>
+                    <ul>
+                        <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                        <li><a href="{{ url_for('lotes') }}">Lotes</a></li>
+                        <li><a href="{{ url_for('relatorios') }}">Relatórios</a></li>
+                        <li><a href="#configuracoes">Configurações</a></li>
+                        <li><a href="#" id="logoutLink" style="color: #fed7d7;">Sair</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main>
+            <!-- Botão flutuante para troca de abas/tabelas -->
+            <div style="position: fixed; bottom: 32px; right: 32px; z-index: 1200;">
+                <button class="btn btn-primary" id="btn-troca-tabela" style="border-radius: 12px; padding: 12px 20px; box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); font-size: 0.875rem; font-weight: 600; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: all 0.3s ease; border: none; backdrop-filter: blur(10px);" title="Alternar entre tabelas">
+                    <span id="icon-troca-tabela" style="font-size: 1.25rem;">⇄</span>
+                    <span style="letter-spacing: 0.5px;">Trocar Tabela</span>
+                </button>
+            </div>
+        <div class="container">
+            <!-- Breadcrumb -->
+            <nav aria-label="Navegação" style="margin-bottom: 2rem;">
+                <div style="margin-bottom: 2.5rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 0.75rem 1.25rem; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+                    <div style="display: flex; gap: 0.5rem; font-size: 0.95rem; color: var(--gray-500); align-items: center;">
+                        <span><a href="{{ url_for('dashboard') }}" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Dashboard</a></span>
+                        <span aria-hidden="true" style="font-size: 1.1em; opacity: 0.7;">/</span>
+                        <span><a href="{{ url_for('lotes') }}" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Lotes</a></span>
+                        <span aria-hidden="true" style="font-size: 1.1em; opacity: 0.7;">/</span>
+                        <span aria-current="page" style="color: var(--primary-color); font-weight: 600;">{{ lote.nome }}</span>
+                    </div>
+                </div>
+                    <!-- Apenas o breadcrumb completo -->
+                </ol>
+            </nav>
+
+            <!-- Header do Lote -->
+            <section class="card" style="margin-bottom: 2rem;">
+                <div class="card-body" style="padding: 2rem;">
+                    <div style="display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: start;">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <h1 style="margin: 0; color: var(--primary-color);" id="titulo-lote">{{ lote.nome }}</h1>
+                                {% if lote.ativo %}
+                                <div class="badge" style="background-color: var(--success-color); color: white; padding: 0.5rem 1rem; border-radius: 1rem; font-size: 0.875rem;">
+                                    ATIVO
+                                </div>
+                                {% else %}
+                                <div class="badge" style="background-color: var(--gray-400); color: white; padding: 0.5rem 1rem; border-radius: 1rem; font-size: 0.875rem;">
+                                    INATIVO
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                                <div>
+                                    <strong>Empresa Responsável:</strong><br>
+                                    <span id="empresa-nome">{{ lote.empresa }}</span>
+                                </div>
+                                <div>
+                                    <strong>Contrato:</strong><br>
+                                    <span>{{ lote.contrato }}</span>
+                                </div>
+                                <div>
+                                    <strong>Início do Contrato:</strong><br>
+                                    {% if lote.data_inicio %}
+                                        <span>{{ lote.data_inicio.split('-')[2] }}/{{ lote.data_inicio.split('-')[1] }}/{{ lote.data_inicio.split('-')[0] }}</span>
+                                    {% else %}
+                                        <span style="color: #aaa;">Não informado</span>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <strong>Unidades Ativas:</strong><br>
+                                    <span id="unidades-count">
+                                        {{ unidades_lote | length }} unidades
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <!-- Tabela de Preços das Refeições -->
+                            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--gray-200);">
+                                <h4 style="margin: 0 0 1rem 0; color: var(--gray-700); font-size: 1rem;">💰 Preços das Refeições</h4>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                                    {% if lote.precos %}
+                                    <div style="background-color: var(--gray-50); padding: 0.75rem; border-radius: var(--border-radius); text-align: center;">
+                                        <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.25rem;">☕ Café</div>
+                                        <div style="font-size: 0.875rem;">
+                                            <span style="color: var(--gray-600);">Interno:</span> <strong>R$ {{ "%.2f"|format(lote.precos.cafe.interno) }}</strong><br>
+                                            <span style="color: var(--gray-600);">Func.:</span> <strong>R$ {{ "%.2f"|format(lote.precos.cafe.funcionario) }}</strong>
+                                        </div>
+                                    </div>
+                                    <div style="background-color: var(--gray-50); padding: 0.75rem; border-radius: var(--border-radius); text-align: center;">
+                                        <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.25rem;">🍽️ Almoço</div>
+                                        <div style="font-size: 0.875rem;">
+                                            <span style="color: var(--gray-600);">Interno:</span> <strong>R$ {{ "%.2f"|format(lote.precos.almoco.interno) }}</strong><br>
+                                            <span style="color: var(--gray-600);">Func.:</span> <strong>R$ {{ "%.2f"|format(lote.precos.almoco.funcionario) }}</strong>
+                                        </div>
+                                    </div>
+                                    <div style="background-color: var(--gray-50); padding: 0.75rem; border-radius: var(--border-radius); text-align: center;">
+                                        <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.25rem;">🥪 Lanche</div>
+                                        <div style="font-size: 0.875rem;">
+                                            <span style="color: var(--gray-600);">Interno:</span> <strong>R$ {{ "%.2f"|format(lote.precos.lanche.interno) }}</strong><br>
+                                            <span style="color: var(--gray-600);">Func.:</span> <strong>R$ {{ "%.2f"|format(lote.precos.lanche.funcionario) }}</strong>
+                                        </div>
+                                    </div>
+                                    <div style="background-color: var(--gray-50); padding: 0.75rem; border-radius: var(--border-radius); text-align: center;">
+                                        <div style="font-weight: 600; color: var(--primary-color); margin-bottom: 0.25rem;">🌙 Jantar</div>
+                                        <div style="font-size: 0.875rem;">
+                                            <span style="color: var(--gray-600);">Interno:</span> <strong>R$ {{ "%.2f"|format(lote.precos.jantar.interno) }}</strong><br>
+                                            <span style="color: var(--gray-600);">Func.:</span> <strong>R$ {{ "%.2f"|format(lote.precos.jantar.funcionario) }}</strong>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <div style="grid-column: 1 / -1; text-align: center; color: var(--gray-500); font-style: italic; padding: 1rem;">
+                                        Preços das refeições não disponíveis para este lote
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: right;">
+                            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📊</div>
+                            <div style="font-size: 1.5rem; font-weight: 600; color: var(--primary-color);" id="conformidade-geral">
+                                N/A
+                            </div>
+                            <div style="font-size: 0.875rem; color: var(--gray-600);">Conformidade Geral</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Filtros e Controles -->
+            <section class="fade-in" style="margin-bottom: 2rem;">
+                <!-- Filtros Compactos -->
+                <div style="background: white; border-radius: 12px; padding: 1rem 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <span style="font-size: 1.125rem;">🔍</span>
+                            <span style="font-weight: 500; color: var(--gray-700); font-size: 0.875rem;">Filtros:</span>
+                        </div>
+                        
+                        <div class="periodo-filter-container" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="font-weight: 500; color: var(--gray-600); font-size: 0.875rem;">Período:</label>
+                            <div class="periodo-display" id="periodo-display" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                                <span class="periodo-text" id="periodo-text">Setembro/2025</span>
+                                <span class="periodo-icon">📅</span>
+                            </div>
+                            
+                            <!-- Overlay para fechar calendário -->
+                            <div class="calendario-overlay" id="calendario-overlay"></div>
+                            
+                            <!-- Popup do calendário -->
+                            <div class="calendario-popup" id="calendario-popup">
+                                <div class="calendario-header">
+                                    <h4 style="margin: 0; color: var(--primary-color); font-size: 1rem;">📅 Selecionar Período</h4>
+                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--gray-600);">Escolha as datas de início e fim para filtrar os dados</p>
+                                </div>
+                                
+                                <div class="calendario-body">
+                                    <div class="periodo-inputs">
+                                        <div class="date-input-group">
+                                            <label class="date-input-label">� Início</label>
+                                            <input type="date" class="date-input" id="data-inicio" value="2025-09-01">
+                                        </div>
+                                        <div class="date-input-group">
+                                            <label class="date-input-label">� Fim</label>
+                                            <input type="date" class="date-input" id="data-fim" value="2025-09-30">
+                                        </div>
+                                        <div class="date-input-group">
+                                            <label class="date-input-label">📅 Mês</label>
+                                            <select class="date-input" id="mes-periodo">
+                                                <option value="1">Janeiro</option>
+                                                <option value="2">Fevereiro</option>
+                                                <option value="3">Março</option>
+                                                <option value="4">Abril</option>
+                                                <option value="5">Maio</option>
+                                                <option value="6">Junho</option>
+                                                <option value="7">Julho</option>
+                                                <option value="8">Agosto</option>
+                                                <option value="9">Setembro</option>
+                                                <option value="10">Outubro</option>
+                                                <option value="11">Novembro</option>
+                                                <option value="12">Dezembro</option>
+                                            </select>
+                                        </div>
+                                        <div class="date-input-group">
+                                            <label class="date-input-label">📅 Ano</label>
+                                            <input type="number" class="date-input" id="ano-periodo" min="2020" max="2030">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="calendario-actions">
+                                        <div class="periodo-info">
+                                            <span id="dias-periodo">30 dias selecionados</span>
+                                        </div>
+                                        <div class="action-buttons">
+                                            <button class="btn-calendario" id="btn-cancelar-periodo">❌ Cancelar</button>
+                                            <button class="btn-calendario primary" id="btn-aplicar-periodo">✅ Aplicar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="unidades-filter-container" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="font-weight: 500; color: var(--gray-600); font-size: 0.875rem;">Unidades:</label>
+                            <div class="unidades-display" id="unidades-display" style="padding: 0.5rem 0.75rem; font-size: 0.875rem;">
+                                <span class="unidades-text" id="unidades-text">Todas as unidades</span>
+                                <span class="unidades-icon">🏢</span>
+                            </div>
+                            
+                            <!-- Overlay para fechar popup de unidades -->
+                            <div class="unidades-overlay" id="unidades-overlay"></div>
+                            
+                            <!-- Popup de seleção de unidades -->
+                            <div class="unidades-popup" id="unidades-popup">
+                                <div class="unidades-header">
+                                    <h4 style="margin: 0; color: var(--primary-color); font-size: 1rem;">🏢 Selecionar Unidades</h4>
+                                    <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: var(--gray-600);">Escolha as unidades para filtrar os dados</p>
+                                </div>
+                                
+                                <div class="unidades-body">
+                                    <div class="unidades-controls">
+                                        <button class="control-btn" id="btn-selecionar-todas">✅ Todas</button>
+                                        <button class="control-btn" id="btn-limpar-todas">❌ Limpar</button>
+                                    </div>
+                                    
+                                    <div class="unidades-list" id="unidades-list">
+                                        {% for unidade in unidades_lote %}
+                                        <div class="unidade-item" data-value="{{ unidade }}">
+                                            <input type="checkbox" class="unidade-checkbox" id="checkbox-unidade{{ loop.index }}" value="{{ unidade }}">
+                                            <label class="unidade-label" for="checkbox-unidade{{ loop.index }}">{{ unidade }}</label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                    
+                                    <div class="unidades-actions">
+                                        <div class="unidades-info">
+                                            <span id="unidades-selecionadas-count">
+                                                {{ unidades_lote | length }} unidades selecionadas
+                                            </span>
+                                        </div>
+                                        <div class="action-buttons">
+                                            <button class="btn-calendario" id="btn-cancelar-unidades">❌ Cancelar</button>
+                                            <button class="btn-calendario primary" id="btn-aplicar-unidades">✅ Aplicar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Botões de Ação -->
+                <div style="background: white; border-radius: 12px; padding: 1rem 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
+                        <button class="btn btn-primary" id="btn-adicionar-dados" style="font-size: 0.875rem; padding: 0.625rem 1rem;">
+                            📤 Adicionar Dados
+                        </button>
+                        <button class="btn btn-secondary" id="btn-entrada-manual" style="font-size: 0.875rem; padding: 0.625rem 1rem;">
+                            ✏️ Entrada Manual
+                        </button>
+                        <button class="btn btn-danger" id="btn-excluir-dados" style="font-size: 0.875rem; padding: 0.625rem 1rem;">
+                            🗑️ Excluir Dados
+                        </button>
+                        <button class="btn btn-info" id="btn-adicionar-siisp" style="font-size: 0.875rem; padding: 0.625rem 1rem;">
+                            � Adicionar nº SIISP
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Container de Resumos com Sub-abas -->
+            <section class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <h3>📊 Resumos do Período</h3>
+                </div>
+                
+                <!-- Sub-abas de Resumos -->
+                <div style="border-bottom: 2px solid var(--gray-200); background-color: var(--gray-50);">
+                    <div style="display: flex; padding: 0 1rem;">
+                        <button class="resumo-tab-button active" data-resumo-tab="resumo-refeicoes" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray-600); border-bottom: 3px solid transparent; transition: all 0.3s ease;">
+                            🍽️ Resumo Refeições
+                        </button>
+                        <button class="resumo-tab-button" data-resumo-tab="resumo-financeiro" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray-600); border-bottom: 3px solid transparent; transition: all 0.3s ease;">
+                            💰 Resumo Financeiro
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Conteúdo das Sub-abas -->
+                <div class="card-body">
+                    
+                    <!-- Sub-aba 1: Resumo de Refeições -->
+                    <div id="resumo-tab-resumo-refeicoes" class="resumo-tab-content" style="display: block;">
+                        <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 2rem; align-items: center;">
+                            <!-- Total Geral - Esquerda -->
+                            <div style="text-align: center; padding: 1.5rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                <div style="font-size: 2rem; color: var(--primary-color); font-weight: 600;" id="total-refeicoes">28,450</div>
+                                <div style="color: var(--gray-600); font-size: 0.875rem;">Total de Refeições</div>
+                            </div>
+
+                            <!-- Indicadores por Tipo de Refeição - Centro -->
+                            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                                <!-- Linha Superior -->
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-cafe-interno">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Café Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-cafe-funcionario">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Café Funcionário</div>
+                                </div>
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-almoco-interno">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Almoço Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-almoco-funcionario">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Almoço Funcionário</div>
+                                </div>
+                                
+                                <!-- Linha Inferior -->
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-lanche-interno">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Lanche Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-lanche-funcionario">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Lanche Funcionário</div>
+                                </div>
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-jantar-interno">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Jantar Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 1rem; background-color: var(--light-blue); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.5rem; color: var(--primary-color); font-weight: 600;" id="total-jantar-funcionario">0</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Jantar Funcionário</div>
+                                </div>
+                            </div>
+
+                            <!-- Indicadores de Conformidade - Direita -->
+                            <div style="display: grid; grid-template-rows: 1fr 1fr; gap: 1rem;">
+                                <div style="text-align: center; padding: 1.5rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.8rem; color: var(--warning-color); font-weight: 600;" id="diferencas-pequenas">23</div>
+                                    <div style="color: var(--gray-600); font-size: 0.875rem;">Diferenças Pequenas</div>
+                                </div>
+                                <div style="text-align: center; padding: 1.5rem; background-color: var(--gray-50); border-radius: var(--border-radius);">
+                                    <div style="font-size: 1.8rem; color: var(--danger-color); font-weight: 600;" id="discrepancias-criticas">8</div>
+                                    <div style="color: var(--gray-600); font-size: 0.875rem;">Discrepâncias Críticas</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-aba 2: Resumo Financeiro -->
+                    <div id="resumo-tab-resumo-financeiro" class="resumo-tab-content" style="display: none;">
+                        <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); gap: 2rem; align-items: start; overflow: hidden;">
+                            <!-- Valor Total - Esquerda -->
+                            <div style="text-align: center; padding: 1rem; background-color: #f0f9ff; border-radius: var(--border-radius); border: 2px solid var(--success-color); min-width: 0;">
+                                <div style="font-size: 2rem; color: var(--success-color); font-weight: 600; word-break: break-word;" id="valor-total">R$ 0,00</div>
+                                <div style="color: var(--gray-600); font-size: 0.875rem;">Valor Total</div>
+                            </div>
+
+                            <!-- Valores Parciais por Tipo de Refeição - Centro -->
+                            <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; min-width: 0;">
+                                <!-- Linha Superior -->
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-cafe-interno">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Café Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-cafe-funcionario">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Café Funcionário</div>
+                                </div>
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-almoco-interno">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Almoço Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-almoco-funcionario">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Almoço Funcionário</div>
+                                </div>                            <!-- Linha Inferior -->
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-lanche-interno">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Lanche Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-lanche-funcionario">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Lanche Funcionário</div>
+                                </div>
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-jantar-interno">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Jantar Interno</div>
+                                </div>
+                                <div style="text-align: center; padding: 0.4rem; background-color: #fef3c7; border-radius: var(--border-radius); min-width: 0;">
+                                    <div style="font-size: 1rem; color: #d97706; font-weight: 600; word-break: break-word;" id="valor-jantar-funcionario">R$ 0,00</div>
+                                    <div style="color: var(--gray-600); font-size: 0.75rem;">Jantar Funcionário</div>
+                                </div>
+                            </div>
+
+                            <!-- Indicador de Desvio - Direita -->
+                            <div style="text-align: center; padding: 1rem; background-color: #fef2f2; border-radius: var(--border-radius); border: 2px solid var(--danger-color); min-width: 0;">
+                                <div style="font-size: 1.8rem; color: var(--danger-color); font-weight: 600; word-break: break-word;" id="valor-desvio">R$ 0,00</div>
+                                <div style="color: var(--gray-600); font-size: 0.875rem;">Desvio</div>
+                                <div style="color: var(--gray-500); font-size: 0.75rem; margin-top: 0.25rem;">Valores Excedentes</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </section>
+
+            <!-- Seções Colapsáveis -->
+            <div style="display: grid; gap: 2rem;">
+                <!-- Seção de Adição de Dados -->
+                <section class="card" id="secao-importacao" style="display: none;">
+                    <div class="card-header">
+                        <h3>Adicionar Dados via PDF</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Seletor de Mês e Ano -->
+                        <div class="mes-ano-selector">
+                            <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                                <label class="form-label" style="margin: 0; font-weight: 600; color: var(--primary-color);">📅 Período de Referência:</label>
+                                <div class="mes-ano-display" id="mes-ano-display-import">
+                                    <span class="mes-ano-text" id="mes-ano-text-import">Setembro/2025</span>
+                                    <span class="mes-ano-icon">📅</span>
+                                </div>
+                            </div>
+                            <div class="mes-ano-inputs">
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; color: var(--gray-600); margin-bottom: 0.25rem;">Mês</label>
+                                    <select id="mes-import" class="mes-ano-input">
+                                        <option value="1">Jan</option>
+                                        <option value="2">Fev</option>
+                                        <option value="3">Mar</option>
+                                        <option value="4">Abr</option>
+                                        <option value="5">Mai</option>
+                                        <option value="6">Jun</option>
+                                        <option value="7">Jul</option>
+                                        <option value="8">Ago</option>
+                                        <option value="9" selected>Set</option>
+                                        <option value="10">Out</option>
+                                        <option value="11">Nov</option>
+                                        <option value="12">Dez</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; color: var(--gray-600); margin-bottom: 0.25rem;">Ano</label>
+                                    <input type="number" id="ano-import" class="mes-ano-input" value="2025" min="2020" max="2030">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                            <div>
+                                <div class="form-group">
+                                    <label for="select-presidio-import" class="form-label">Unidade</label>
+                                    <select id="select-unidade-import" class="form-select" required>
+                                        <option value="">Selecione a unidade</option>
+                                        {% for unidade in unidades_lote %}
+                                        <option value="{{ unidade }}">{{ unidade }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="texto-pdf" class="form-label">Texto extraído do PDF ou Excel</label>
+                                    <textarea 
+                                        id="texto-pdf" 
+                                        class="form-textarea" 
+                                        rows="12" 
+                                        placeholder="Cole aqui o texto extraído do PDF ou Excel com os dados de refeições..."
+                                    ></textarea>
+                                    <div style="font-size: 0.75rem; color: var(--gray-500); margin-top: 0.25rem;">
+                                        Formato esperado: Data, tipo de refeição e quantidade por linha
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="form-group">
+                                    <label for="dados-siisp" class="form-label">Dados do SIISP (opcional)</label>
+                                    <textarea 
+                                        id="dados-siisp" 
+                                        class="form-textarea" 
+                                        rows="4" 
+                                        placeholder="Cole os dados de número de detentos do SIISP para comparação..."
+                                    ></textarea>
+                                </div>
+                                
+                                <div style="padding: 1.5rem; background-color: var(--light-blue); border-radius: var(--border-radius); margin-bottom: 1rem;">
+                                    <h4 style="color: var(--primary-color); margin-bottom: 1rem;">📋 Formato dos Dados:</h4>
+                                    <p style="font-size: 0.875rem; color: var(--gray-700); margin-bottom: 1rem;">
+                                        Cole os dados separados por <strong>TAB</strong> ou <strong>ESPAÇOS</strong>. O sistema detecta automaticamente o separador.
+                                    </p>
+                                    
+                                    <h5 style="color: var(--primary-color); margin-bottom: 0.5rem; font-size: 0.875rem;">✅ Formato com TAB (recomendado):</h5>
+                                    <pre style="font-family: 'Courier New', monospace; font-size: 0.75rem; color: var(--gray-700); margin: 0 0 1rem 0; background-color: #f8f9fa; padding: 0.75rem; border-radius: 4px; white-space: pre-wrap;">01/09/2025	915	12	915	70	915	58	915	12	909
+02/09/2025	914	12	914	70	914	58	914	12	909
+03/09/2025	901	12	901	70	901	58	904	12	896</pre>
+                                    
+                                    <h5 style="color: var(--primary-color); margin-bottom: 0.5rem; font-size: 0.875rem;">✅ Formato com ESPAÇOS (também aceito):</h5>
+                                    <pre style="font-family: 'Courier New', monospace; font-size: 0.75rem; color: var(--gray-700); margin: 0; background-color: #f8f9fa; padding: 0.75rem; border-radius: 4px; white-space: pre-wrap;">01/09/2025 915 12 915 70 915 58 915 12 909
+02/09/2025 914 12 914 70 914 58 914 12 909
+03/09/2025 901 12 901 70 901 58 904 12 896</pre>
+                                    
+                                    <div style="margin-top: 1rem; padding: 0.75rem; background-color: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                        <p style="font-size: 0.75rem; margin: 0; color: #856404;">
+                                            <strong>💡 Dica:</strong> Dados copiados do Excel usam TAB. Dados copiados de PDFs usam espaços. Ambos funcionam!
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.75rem; justify-content: end; margin-top: 1rem;">
+                            <button class="btn btn-secondary" id="btn-cancelar-import">Cancelar</button>
+                            <button class="btn btn-primary" id="btn-processar-import">Adicionar</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Seção de Entrada Manual -->
+                <section class="card" id="secao-manual" style="display: none;">
+                    <div class="card-header">
+                        <h3>Entrada Manual de Dados</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Seletor de Mês e Ano -->
+                        <div class="mes-ano-selector">
+                            <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                                <label class="form-label" style="margin: 0; font-weight: 600; color: var(--primary-color);">📅 Período de Referência:</label>
+                                <div class="mes-ano-display" id="mes-ano-display-manual">
+                                    <span class="mes-ano-text" id="mes-ano-text-manual">Setembro/2025</span>
+                                    <span class="mes-ano-icon">📅</span>
+                                </div>
+                            </div>
+                            <div class="mes-ano-inputs">
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; color: var(--gray-600); margin-bottom: 0.25rem;">Mês</label>
+                                    <select id="mes-manual" class="mes-ano-input">
+                                        <option value="1">Jan</option>
+                                        <option value="2">Fev</option>
+                                        <option value="3">Mar</option>
+                                        <option value="4">Abr</option>
+                                        <option value="5">Mai</option>
+                                        <option value="6">Jun</option>
+                                        <option value="7">Jul</option>
+                                        <option value="8">Ago</option>
+                                        <option value="9" selected>Set</option>
+                                        <option value="10">Out</option>
+                                        <option value="11">Nov</option>
+                                        <option value="12">Dez</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; color: var(--gray-600); margin-bottom: 0.25rem;">Ano</label>
+                                    <input type="number" id="ano-manual" class="mes-ano-input" value="2025" min="2020" max="2030">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="select-unidade-manual" class="form-label">Unidade</label>
+                            <select id="select-unidade-manual" class="form-select" required>
+                                <option value="">Selecione a unidade</option>
+                                {% for unidade in unidades_lote %}
+                                <option value="{{ unidade }}">{{ unidade }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Tabela de entrada manual -->
+                        <div style="margin-top: 1rem; padding: 0.75rem; background-color: #e3f2fd; border-radius: 4px; border-left: 4px solid var(--primary-color);">
+                            <p style="font-size: 0.75rem; margin: 0; color: var(--primary-color);">
+                                <strong>💡 Dica:</strong> Você pode copiar dados do Excel e colar diretamente na tabela. Os dados se espalharão automaticamente pelas células corretas (incluindo datas)!
+                            </p>
+                        </div>
+                        
+                        <div class="tabela-container">
+                            <table class="tabela-manual" id="tabela-entrada-manual">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 100px;">Data</th>
+                                        <th style="width: 90px;">Café<br>Interno</th>
+                                        <th style="width: 90px;">Café<br>Funcionário</th>
+                                        <th style="width: 90px;">Almoço<br>Interno</th>
+                                        <th style="width: 90px;">Almoço<br>Funcionário</th>
+                                        <th style="width: 90px;">Lanche<br>Interno</th>
+                                        <th style="width: 90px;">Lanche<br>Funcionário</th>
+                                        <th style="width: 90px;">Jantar<br>Interno</th>
+                                        <th style="width: 90px;">Jantar<br>Funcionário</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-entrada-manual">
+                                    <!-- Linhas serão geradas dinamicamente pelo JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.75rem; justify-content: end; margin-top: 1rem;">
+                            <button class="btn btn-secondary" id="btn-cancelar-manual">Cancelar</button>
+                            <button class="btn btn-primary" id="btn-salvar-manual">Salvar Dados</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Seção de Exclusão de Dados -->
+                <section class="card" id="secao-exclusao" style="display: none;">
+                    <div class="card-header">
+                        <h3>Excluir Dados</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; align-items: end; margin-bottom: 2rem;">
+                            <div class="form-group">
+                                <label for="select-unidade-exclusao" class="form-label">Unidade</label>
+                                <select id="select-unidade-exclusao" class="form-select" required>
+                                    <option value="">Selecione a unidade</option>
+                                    {% for unidade in unidades_lote %}
+                                    <option value="{{ unidade }}">{{ unidade }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="mes-exclusao" class="form-label">Mês</label>
+                                <select id="mes-exclusao" class="form-select" required>
+                                    <option value="">Selecione o mês</option>
+                                    <option value="1">Janeiro</option>
+                                    <option value="2">Fevereiro</option>
+                                    <option value="3">Março</option>
+                                    <option value="4">Abril</option>
+                                    <option value="5">Maio</option>
+                                    <option value="6">Junho</option>
+                                    <option value="7">Julho</option>
+                                    <option value="8">Agosto</option>
+                                    <option value="9">Setembro</option>
+                                    <option value="10">Outubro</option>
+                                    <option value="11">Novembro</option>
+                                    <option value="12">Dezembro</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="ano-exclusao" class="form-label">Ano</label>
+                                <input type="number" id="ano-exclusao" class="form-input" min="2020" max="2030" value="2025" required>
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 1rem; background-color: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107; margin-bottom: 1.5rem;">
+                            <p style="font-size: 0.875rem; margin: 0; color: #856404;">
+                                <strong>⚠️ Atenção:</strong> Esta ação excluirá permanentemente todos os dados de refeições da unidade selecionada para o mês/ano especificado. Esta ação não pode ser desfeita.
+                            </p>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.75rem; justify-content: end;">
+                            <button class="btn btn-secondary" id="btn-cancelar-exclusao">Cancelar</button>
+                            <button class="btn btn-danger" id="btn-confirmar-exclusao">Excluir Dados</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Seção de Adição de Números SIISP -->
+                <section class="card" id="secao-siisp" style="display: none;">
+                    <div class="card-header">
+                        <h3>Adicionar Números SIISP</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Seletor de Mês e Ano -->
+                        <div class="mes-ano-selector">
+                            <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+                                <span class="form-label" style="margin: 0; min-width: 120px; font-weight: 500;">Mês/Ano:</span>
+                                <div id="mes-ano-display-siisp" class="mes-ano-display">
+                                    <span id="mes-ano-text-siisp">Selecionar mês e ano</span>
+                                    <i style="font-size: 1rem; color: var(--gray-500);">📅</i>
+                                </div>
+                            </div>
+                            <div class="mes-ano-inputs">
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="mes-siisp" class="form-label">Mês</label>
+                                    <select id="mes-siisp" class="form-select" required>
+                                        <option value="1">Janeiro</option>
+                                        <option value="2">Fevereiro</option>
+                                        <option value="3">Março</option>
+                                        <option value="4">Abril</option>
+                                        <option value="5">Maio</option>
+                                        <option value="6">Junho</option>
+                                        <option value="7">Julho</option>
+                                        <option value="8">Agosto</option>
+                                        <option value="9">Setembro</option>
+                                        <option value="10">Outubro</option>
+                                        <option value="11">Novembro</option>
+                                        <option value="12">Dezembro</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label for="ano-siisp" class="form-label">Ano</label>
+                                    <input type="number" id="ano-siisp" class="form-input" placeholder="2025" min="2020" max="2030" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="select-unidade-siisp" class="form-label">Unidade</label>
+                            <select id="select-unidade-siisp" class="form-select" required>
+                                <option value="">Selecione a unidade...</option>
+                                {% for unidade in unidades_lote %}
+                                <option value="{{ unidade }}">{{ unidade }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="numeros-siisp" class="form-label">Números SIISP</label>
+                            <textarea id="numeros-siisp" class="form-textarea" rows="15" placeholder="Cole os números SIISP aqui (um por linha)&#10;&#10;Exemplo:&#10;1250&#10;1189&#10;1205&#10;1178&#10;1192&#10;..."></textarea>
+                            <div class="form-help">
+                                <p style="font-size: 0.875rem; color: var(--gray-600); margin: 0.5rem 0 0;">
+                                    💡 <strong>Instruções:</strong> Cole os números SIISP, um por linha. Deve haver um número para cada dia do mês selecionado.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Informações e Instruções -->
+                        <div style="margin-top: 1.5rem;">
+                            <div style="padding: 1rem; background-color: #e3f2fd; border-radius: 4px; border-left: 4px solid var(--primary-color); margin-bottom: 1rem;">
+                                <h4 style="color: var(--primary-color); margin-bottom: 0.75rem; font-size: 1rem;">ℹ️ Como funciona</h4>
+                                <ul style="font-size: 0.875rem; margin: 0; color: var(--primary-color); padding-left: 1.25rem;">
+                                    <li>Os números SIISP são usados para calcular as diferenças com os dados de refeições</li>
+                                    <li>Deve haver exatamente um número para cada dia do mês</li>
+                                    <li>Os números serão aplicados aos registros existentes da unidade selecionada</li>
+                                    <li>Se não existirem dados de refeições para a unidade/período, nada será alterado</li>
+                                </ul>
+                            </div>
+                            
+                            <div style="padding: 1rem; background-color: #fff3cd; border-radius: 4px; border-left: 4px solid #ffc107;">
+                                <p style="font-size: 0.875rem; margin: 0; color: #856404;">
+                                    <strong>⚠️ Atenção:</strong> Esta operação irá sobrescrever os números SIISP existentes para a unidade e período selecionados.
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.75rem; justify-content: end; margin-top: 1.5rem;">
+                            <button class="btn btn-secondary" id="btn-cancelar-siisp">Cancelar</button>
+                            <button class="btn btn-primary" id="btn-processar-siisp">Adicionar SIISP</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Sistema de Abas para Dados -->
+                <section class="card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 id="titulo-tabela">📋 Dados Detalhados</h3>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-sm btn-secondary" id="btn-legenda">
+                                🎨 Legenda
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="btn-exportar-tabela">
+                                📋 Exportar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Abas de Navegação -->
+                    <div style="border-bottom: 2px solid var(--gray-200); background-color: var(--gray-50);">
+                        <div style="display: flex; padding: 0 1rem;">
+                            <button class="tab-button active" data-tab="dados-refeicoes" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray-600); border-bottom: 3px solid transparent; transition: all 0.3s ease;">
+                                📊 Dados de Refeições
+                            </button>
+                            <button class="tab-button" data-tab="comparacao-siisp" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 500; color: var(--gray-600); border-bottom: 3px solid transparent; transition: all 0.3s ease;">
+                                🎯 Comparação SIISP
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Conteúdo das Abas -->
+                    <div class="card-body" style="padding: 0;">
+                        
+                        <!-- Aba 1: Dados de Refeições -->
+                        <div id="tab-dados-refeicoes" class="tab-content" style="display: block;">
+                            <div style="padding: 1rem; background-color: var(--light-blue); border-bottom: 1px solid var(--gray-200);">
+                                <p style="margin: 0; font-size: 0.875rem; color: var(--primary-color);">
+                                    <strong>📋 Tabela de Entrada:</strong> Visualize apenas os dados de refeições inseridos, 
+                                    sem comparação. Esta é a tabela base com os números originais reportados.
+                                </p>
+                            </div>
+                            <div class="table-container">
+                                <table class="table" id="tabela-dados-refeicoes">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">Data</th>
+                                            <th rowspan="2">Unidade</th>
+                                            <th colspan="2">Café</th>
+                                            <th colspan="2">Almoço</th>
+                                            <th colspan="2">Lanche</th>
+                                            <th colspan="2">Jantar</th>
+                                            <th rowspan="2">Total Dia</th>
+                                        </tr>
+                                        <tr>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-dados-refeicoes">
+                                        <!-- Dados serão inseridos via JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Aba 2: Comparação SIISP -->
+                        <div id="tab-comparacao-siisp" class="tab-content" style="display: none;">
+                            <div style="padding: 1rem; background-color: #fff3cd; border-bottom: 1px solid var(--gray-200);">
+                                <p style="margin: 0; font-size: 0.875rem; color: #856404;">
+                                    <strong>🎯 Tabela de Comparação:</strong> Dados comparados com o SIISP, com indicadores 
+                                    coloridos. Verde (OK), Azul (diferença 1-5), Vermelho (diferença >5).
+                                </p>
+                            </div>
+                            <div class="table-container">
+                                <table class="table" id="tabela-comparacao-siisp">
+                                    <thead>
+                                        <tr>
+                                            <th rowspan="2">Data</th>
+                                            <th rowspan="2">Unidade</th>
+                                            <th rowspan="2">SIISP</th>
+                                            <th colspan="2">Café</th>
+                                            <th colspan="2">Almoço</th>
+                                            <th colspan="2">Lanche</th>
+                                            <th colspan="2">Jantar</th>
+                                        </tr>
+                                        <tr>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                            <th>Interno</th>
+                                            <th>Func.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-comparacao-siisp">
+                                        <!-- Dados serão inseridos via JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal da Legenda -->
+    <div id="modal-legenda" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: var(--border-radius-xl); padding: 2rem; max-width: 500px; width: 90%;">
+            <h3 style="margin-bottom: 1.5rem;">Legenda dos Indicadores</h3>
+            
+            <div style="display: grid; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 30px; height: 30px; background-color: var(--success-color); border-radius: var(--border-radius); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: bold;">OK</div>
+                    <div>
+                        <strong>Verde:</strong> Diferença ≤ 0 entre internos e SIISP (Conforme)
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 30px; height: 30px; background-color: var(--warning-color); border-radius: var(--border-radius); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem;">+2</div>
+                    <div>
+                        <strong>Azul:</strong> Diferença de 1-5 refeições para internos (Atenção)
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 30px; height: 30px; background-color: var(--danger-color); border-radius: var(--border-radius); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem;">+8</div>
+                    <div>
+                        <strong>Vermelho (Crítico):</strong> Diferença > 5 refeições para internos
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 30px; height: 30px; background-color: var(--success-color); border-radius: var(--border-radius); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: bold;">OK</div>
+                    <div>
+                        <strong>Verde (Funcionários):</strong> Valores negativos SIISP funcionários (normais)
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <div style="width: 30px; height: 30px; background-color: var(--danger-color); border-radius: var(--border-radius); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem;">+5</div>
+                    <div>
+                        <strong>Vermelho (Funcionários):</strong> Valores positivos SIISP funcionários (anômalo)
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 2rem;">
+                <button class="btn btn-primary" id="btn-fechar-legenda">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmação de Exclusão -->
+    <div id="modal-confirmacao-exclusao" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: var(--border-radius-xl); padding: 2rem; max-width: 600px; width: 90%;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <div style="width: 80px; height: 80px; background: #dc2626; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; color: white; font-size: 2rem;">🗑️</div>
+                <h3 style="margin-bottom: 1rem; color: #dc2626;">Confirmar Exclusão</h3>
+                <p id="mensagem-confirmacao" style="margin: 0; color: var(--gray-700); line-height: 1.5; font-size: 1rem;"></p>
+            </div>
+            
+            <div style="padding: 1rem; background-color: #fef2f2; border-radius: 8px; border-left: 4px solid #dc2626; margin-bottom: 2rem;">
+                <p style="font-size: 0.875rem; margin: 0; color: #991b1b;">
+                    <strong>⚠️ Atenção:</strong> Esta ação excluirá permanentemente todos os dados de refeições. Esta operação não pode ser desfeita.
+                </p>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn btn-secondary" id="btn-cancelar-confirmacao" style="min-width: 120px;">Cancelar</button>
+                <button class="btn btn-danger" id="btn-confirmar-confirmacao" style="min-width: 120px;">Excluir Dados</button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container text-center">
+            <p style="margin: 0; color: var(--gray-400); font-size: 0.875rem;">
+                © 2025 SGMRP - Sistema de Gerenciamento de Mapas de Refeições Penitenciário
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Sistema de Notificações
+        function showNotification(type, title, message, autoClose = true) {
+            // Remover notificação existente se houver
+            const existingNotification = document.querySelector('.notification');
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            
+            let icon = '📢';
+            if (type === 'success') icon = '✅';
+            else if (type === 'warning') icon = '⚠️';
+            else if (type === 'error') icon = '❌';
+            
+            notification.innerHTML = `
+                <div class="notification-content">
+                    <div class="notification-icon">${icon}</div>
+                    <div class="notification-text">
+                        <strong>${title}</strong>
+                        ${message ? '<br>' + message : ''}
+                    </div>
+                    <button type="button" class="notification-close" onclick="closeNotification(this)">×</button>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-fechar após tempo determinado
+            if (autoClose) {
+                const duration = type === 'error' ? 8000 : 5000; // Erros ficam mais tempo
+                setTimeout(() => {
+                    closeNotification(notification.querySelector('.notification-close'));
+                }, duration);
+            }
+        }
+
+        function closeNotification(button) {
+            const notification = button.closest('.notification');
+            if (notification) {
+                notification.classList.add('closing');
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }
+        }
+
+
+
+    // Dados reais dos mapas do lote - carregados do Flask
+    const mapasLote = JSON.parse(`{{ mapas_lote | tojson | safe }}`);
+    // Dados dos preços do lote
+    const precosLote = JSON.parse(`{{ lote.precos | tojson | safe }}`);
+    // ID do lote atual
+    const loteId = "{{ lote.id }}";
+        
+        // Variáveis globais para controle dos filtros
+        let filtrosAtivos = {
+            dataInicio: null,
+            dataFim: null,
+            // null => no unit filter (show all). Array => explicit selection (can be empty => show none)
+            unidadesSelecionadas: null
+        };
+        
+        // Converter dados dos mapas para formato da tabela
+        const dadosRefeicoes = [];
+        const dadosOriginais = []; // Manter cópia dos dados originais
+        
+        mapasLote.forEach(mapa => {
+            // Verificar qual campo de datas usar (compatibilidade)
+            let datasArray = mapa.datas || mapa.data;
+            let nomeUnidade = mapa.unidade || mapa.nome_unidade;
+            
+            // DEBUG: Verificar se campos SIISP de funcionários existem
+            console.log('DEBUG: Verificando mapa:', {
+                unidade: nomeUnidade,
+                temCafeFuncSiisp: !!mapa.cafe_funcionario_siisp,
+                primeiroValorCafeFuncSiisp: mapa.cafe_funcionario_siisp ? mapa.cafe_funcionario_siisp[0] : 'UNDEFINED',
+                primeiroValorCafeFunc: mapa.cafe_funcionario ? mapa.cafe_funcionario[0] : 'UNDEFINED'
+            });
+            
+            if (!datasArray || !Array.isArray(datasArray)) {
+                return; // Skip este mapa se não tiver dados válidos
+            }
+            
+            // Para cada dia do mês
+            for (let i = 0; i < datasArray.length; i++) {
+                const registro = {
+                    data: datasArray[i],
+                    unidade: nomeUnidade,
+                    cafeInt: (mapa.cafe_interno && mapa.cafe_interno[i]) || 0,
+                    cafeFunc: (mapa.cafe_funcionario && mapa.cafe_funcionario[i]) || 0,
+                    almocoInt: (mapa.almoco_interno && mapa.almoco_interno[i]) || 0,
+                    almocoFunc: (mapa.almoco_funcionario && mapa.almoco_funcionario[i]) || 0,
+                    lancheInt: (mapa.lanche_interno && mapa.lanche_interno[i]) || 0,
+                    lancheFunc: (mapa.lanche_funcionario && mapa.lanche_funcionario[i]) || 0,
+                    jantarInt: (mapa.jantar_interno && mapa.jantar_interno[i]) || 0,
+                    jantarFunc: (mapa.jantar_funcionario && mapa.jantar_funcionario[i]) || 0,
+                    // Dados SIISP - usar dados_siisp ou n_siisp se disponível, senão 0
+                    siispInternos: (mapa.dados_siisp && mapa.dados_siisp.length > i) ? mapa.dados_siisp[i] : 
+                                  (mapa.n_siisp && mapa.n_siisp.length > i) ? mapa.n_siisp[i] : 0,
+                    temSiisp: (mapa.dados_siisp && mapa.dados_siisp.length > 0) || 
+                              (mapa.n_siisp && mapa.n_siisp.length > 0) ||
+                              (mapa.cafe_interno_siisp && mapa.cafe_interno_siisp.length > 0),
+                    // Dados SIISP dos internos (colunas calculadas)
+                    cafeIntSiisp: (mapa.cafe_interno_siisp && mapa.cafe_interno_siisp.length > i) ? mapa.cafe_interno_siisp[i] : null,
+                    almocoIntSiisp: (mapa.almoco_interno_siisp && mapa.almoco_interno_siisp.length > i) ? mapa.almoco_interno_siisp[i] : null,
+                    lancheIntSiisp: (mapa.lanche_interno_siisp && mapa.lanche_interno_siisp.length > i) ? mapa.lanche_interno_siisp[i] : null,
+                    jantarIntSiisp: (mapa.jantar_interno_siisp && mapa.jantar_interno_siisp.length > i) ? mapa.jantar_interno_siisp[i] : null,
+                    // Dados SIISP dos funcionários
+                    cafeFuncSiisp: (mapa.cafe_funcionario_siisp && mapa.cafe_funcionario_siisp.length > i) ? mapa.cafe_funcionario_siisp[i] : null,
+                    almocoFuncSiisp: (mapa.almoco_funcionario_siisp && mapa.almoco_funcionario_siisp.length > i) ? mapa.almoco_funcionario_siisp[i] : null,
+                    lancheFuncSiisp: (mapa.lanche_funcionario_siisp && mapa.lanche_funcionario_siisp.length > i) ? mapa.lanche_funcionario_siisp[i] : null,
+                    jantarFuncSiisp: (mapa.jantar_funcionario_siisp && mapa.jantar_funcionario_siisp.length > i) ? mapa.jantar_funcionario_siisp[i] : null
+                };
+                dadosOriginais.push(registro);
+                dadosRefeicoes.push({...registro}); // Cópia para manipulação
+            }
+        });
+        
+        // Função para aplicar filtros aos dados
+        function aplicarFiltros() {
+            // Limpar dados filtrados
+            dadosRefeicoes.length = 0;
+            
+            console.log('=== APLICANDO FILTROS ===');
+            console.log('Filtros ativos:', filtrosAtivos);
+            console.log('Dados originais total:', dadosOriginais.length);
+            
+            // Se não há filtros ativos (nenhum período e sem filtro de unidades), mostrar todos os dados
+            if (!filtrosAtivos.dataInicio && !filtrosAtivos.dataFim && filtrosAtivos.unidadesSelecionadas === null) {
+                console.log('Nenhum filtro ativo - mostrando todos os dados');
+                dadosOriginais.forEach(registro => {
+                    dadosRefeicoes.push({...registro});
+                });
+            } else {
+                console.log('Aplicando filtros específicos...');
+                // Aplicar filtros aos dados originais
+                dadosOriginais.forEach(registro => {
+                    let incluir = true;
+                    
+                    // Filtro por período
+                    if (filtrosAtivos.dataInicio && filtrosAtivos.dataFim) {
+                        // Converter data brasileira (DD/MM/YYYY) para formato Date
+                        const partesData = registro.data.split('/');
+                        const dataRegistro = new Date(partesData[2], partesData[1] - 1, partesData[0]);
+                        
+                        // Converter strings ISO para Date de forma consistente
+                        const [anoInicio, mesInicio, diaInicio] = filtrosAtivos.dataInicio.split('-');
+                        const [anoFim, mesFim, diaFim] = filtrosAtivos.dataFim.split('-');
+                        const inicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+                        const fim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+                        
+
+                        
+                        if (dataRegistro < inicio || dataRegistro > fim) {
+                            incluir = false;
+                        }
+                    }
+                    
+                    // Filtro por unidades - três estados:
+                    // - filtrosAtivos.unidadesSelecionadas === null => sem filtro (aceita todas)
+                    // - Array with length > 0 => filtrar apenas pelas selecionadas
+                    // - Array with length === 0 => usuário selecionou explicitamente nenhuma unidade -> não incluir
+                    if (Array.isArray(filtrosAtivos.unidadesSelecionadas)) {
+                        if (filtrosAtivos.unidadesSelecionadas.length === 0) {
+                            // Nenhuma unidade explicitamente selecionada -> excluir todos
+                            incluir = false;
+                        } else {
+                            const unidadeIncluida = filtrosAtivos.unidadesSelecionadas.some(unidadeSelecionada => {
+                                // Comparar nomes completos das unidades (exact match ou contains)
+                                const nomeRegistro = registro.unidade.toLowerCase().trim();
+                                const nomeSelecionado = unidadeSelecionada.toLowerCase().trim();
+
+                                // Exact match ou contains
+                                return nomeRegistro === nomeSelecionado || 
+                                       nomeRegistro.includes(nomeSelecionado) ||
+                                       nomeSelecionado.includes(nomeRegistro);
+                            });
+
+                            if (!unidadeIncluida) {
+                                incluir = false;
+                            }
+                        }
+                    }
+                    
+                    if (incluir) {
+                        dadosRefeicoes.push({...registro});
+                    }
+                });
+            }
+            
+            console.log('Dados após filtros:', dadosRefeicoes.length);
+            console.log('=== FIM FILTROS ===\n');
+            
+            // Atualizar tabelas
+            carregarTabelaRefeicoes();
+            atualizarResumoEstatisticas();
+        }
+        
+
+        
+        // Função para limpar todos os filtros
+        function limparTodosFiltros() {
+            // Reset filtros ativos - limpar completamente para mostrar todos os dados
+            filtrosAtivos.dataInicio = null;
+            filtrosAtivos.dataFim = null;
+            // null = sem filtro (mostrar todas). [] = explicitamente nenhuma selecionada
+            filtrosAtivos.unidadesSelecionadas = null;
+            
+            // Reset inputs de data
+            document.getElementById('data-inicio').value = '';
+            document.getElementById('data-fim').value = '';
+            document.getElementById('periodo-text').textContent = 'Selecionar período';
+            
+            // Reset checkboxes de unidades - selecionar todas
+            document.querySelectorAll('.unidade-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            atualizarDisplayUnidades();
+            
+            // Aplicar filtros (que agora mostrará todos os dados)
+            aplicarFiltros();
+        }
+
+        // Verificar autenticação
+        window.addEventListener('load', function() {
+            const usuarioSalvo = localStorage.getItem('sgmrp_usuario');
+            if (!usuarioSalvo) {
+                showNotification('warning', 'Sessão expirada', 'Redirecionando para a página de login...', false);
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 2000);
+                return;
+            }
+
+            // Verificar parâmetros da URL para ações específicas
+            const urlParams = new URLSearchParams(window.location.search);
+            const acao = urlParams.get('acao');
+            const unidadeFiltro = urlParams.get('unidade');
+            const mesFiltro = urlParams.get('mes');
+            const anoFiltro = urlParams.get('ano');
+
+            // Interface já inicializada pelo Flask com dados dinâmicos
+
+            // Mostrar seção específica se houver ação
+            if (acao === 'importar') {
+                mostrarSecaoImportacao();
+            } else if (acao === 'manual') {
+                mostrarSecaoManual();
+            }
+
+            // Se houver filtros na URL (após adicionar dados), aplicá-los
+            if (unidadeFiltro && mesFiltro && anoFiltro) {
+                console.log('🔍 DEBUG URL Parameters:', 'unidade=', unidadeFiltro, 'mes=', mesFiltro, 'ano=', anoFiltro);
+                
+                // Calcular período do mês/ano especificado
+                const mesNum = parseInt(mesFiltro);
+                const anoNum = parseInt(anoFiltro);
+                
+                console.log('🔍 DEBUG Parsed:', 'mesNum=', mesNum, 'anoNum=', anoNum);
+                
+                // Calcular primeiro e último dia do mês corretamente
+                // Usar Date.UTC para evitar problemas de timezone
+                const primeiroDia = new Date(Date.UTC(anoNum, mesNum - 1, 1));
+                // Calcular último dia: primeiro dia do próximo mês - 1 dia
+                const ultimoDia = new Date(Date.UTC(anoNum, mesNum, 0));
+                
+                console.log('🔍 DEBUG Dates:', 
+                    'primeiroDia=', primeiroDia.toISOString(), 
+                    'ultimoDia=', ultimoDia.toISOString()
+                );
+                
+                const dataInicioStr = primeiroDia.toISOString().split('T')[0];
+                const dataFimStr = ultimoDia.toISOString().split('T')[0];
+                
+                console.log('🔍 DEBUG Date Strings:', 'dataInicioStr=', dataInicioStr, 'dataFimStr=', dataFimStr);
+                
+                // Atualizar inputs de data
+                const dataInicioInput = document.getElementById('data-inicio');
+                const dataFimInput = document.getElementById('data-fim');
+                if (dataInicioInput && dataFimInput) {
+                    dataInicioInput.value = dataInicioStr;
+                    dataFimInput.value = dataFimStr;
+                    filtrosAtivos.dataInicio = dataInicioStr;
+                    filtrosAtivos.dataFim = dataFimStr;
+                    console.log('🔍 DEBUG Input values set:', 
+                        'dataInicioValue=', dataInicioInput.value, 
+                        'dataFimValue=', dataFimInput.value
+                    );
+                }
+                
+                // Atualizar seleção de unidades (será aplicado depois em initUnidadesFilter)
+                filtrosAtivos.unidadesSelecionadas = [unidadeFiltro];
+            } else {
+                // Definir mês anterior como padrão no filtro
+                setDefaultPreviousMonth();
+            }
+            
+            // Inicializar filtro de período
+            initPeriodoFilter(unidadeFiltro && mesFiltro && anoFiltro);
+            
+            // Se veio da URL com filtros, atualizar display do período
+            if (unidadeFiltro && mesFiltro && anoFiltro) {
+                atualizarDisplayPeriodo();
+                atualizarTituloPeriodo();
+            }
+            
+            // Inicializar filtro de unidades
+            initUnidadesFilter();
+            
+            // Inicializar seletor de mês/ano da importação
+            initMesAnoImport();
+            
+            // Aplicar filtros iniciais e carregar dados da tabela
+            aplicarFiltros();
+            
+            // Inicializar sistema de abas
+            initTabs();
+            
+            // Inicializar sub-abas de resumos
+            initResumoTabs();
+        });
+
+        // Função removida - interface agora é inicializada pelo Flask com dados dinâmicos
+
+        // Função para definir setembro/2025 como padrão (dados disponíveis)
+        function setDefaultPreviousMonth() {
+            // Calcular mês anterior ao atual
+            const now = new Date();
+            let ano = now.getFullYear();
+            let mes = now.getMonth(); // 0 = janeiro, 10 = novembro
+            if (mes === 0) {
+                mes = 11; // dezembro
+                ano--;
+            } else {
+                mes--;
+            }
+            // Primeiro dia do mês anterior - usar Date.UTC para evitar problemas de timezone
+            const dataInicio = new Date(Date.UTC(ano, mes, 1));
+            // Último dia do mês anterior - usar Date.UTC para evitar problemas de timezone
+            const dataFim = new Date(Date.UTC(ano, mes + 1, 0));
+            const dataInicioStr = dataInicio.toISOString().split('T')[0];
+            const dataFimStr = dataFim.toISOString().split('T')[0];
+            const dataInicioInput = document.getElementById('data-inicio');
+            const dataFimInput = document.getElementById('data-fim');
+            if (dataInicioInput && dataFimInput) {
+                dataInicioInput.value = dataInicioStr;
+                dataFimInput.value = dataFimStr;
+                filtrosAtivos.dataInicio = dataInicioStr;
+                filtrosAtivos.dataFim = dataFimStr;
+                atualizarDisplayPeriodo();
+                aplicarFiltros();
+            }
+        }
+
+        function carregarTabelaRefeicoes() {
+            carregarTabelaDados();
+            carregarTabelaComparacao();
+        }
+        
+        // Função para atualizar resumo de estatísticas
+        function atualizarResumoEstatisticas() {
+            let totalRefeicoes = 0;
+            let totalCafeInterno = 0;
+            let totalCafeFuncionario = 0;
+            let totalAlmocoInterno = 0;
+            let totalAlmocoFuncionario = 0;
+            let totalLancheInterno = 0;
+            let totalLancheFuncionario = 0;
+            let totalJantarInterno = 0;
+            let totalJantarFuncionario = 0;
+            // Contar células azuis (diferenças pequenas) e vermelhas (discrepâncias críticas) na tabela de comparação SIISP
+            let diferencasPequenas = 0;
+            let discrepanciasCriticas = 0;
+            // Contar células OK (verdes) e total de células com dados SIISP para calcular conformidade geral
+            let celulasOk = 0;
+            let totalCelulasComSiisp = 0;
+            // Variáveis para cálculo do desvio (valores monetários dos excedentes)
+            let totalExcedentesInternos = 0;
+            let totalExcedentesFuncionarios = 0;
+            
+            dadosRefeicoes.forEach(row => {
+                // Somar totais por tipo de refeição
+                totalCafeInterno += row.cafeInt;
+                totalCafeFuncionario += row.cafeFunc;
+                totalAlmocoInterno += row.almocoInt;
+                totalAlmocoFuncionario += row.almocoFunc;
+                totalLancheInterno += row.lancheInt;
+                totalLancheFuncionario += row.lancheFunc;
+                totalJantarInterno += row.jantarInt;
+                totalJantarFuncionario += row.jantarFunc;
+                
+                // Calcular total geral
+                const totalDia = row.cafeInt + row.cafeFunc + row.almocoInt + row.almocoFunc + 
+                               row.lancheInt + row.lancheFunc + row.jantarInt + row.jantarFunc;
+                totalRefeicoes += totalDia;
+                
+                // Contar células azuis (cell-warning) e vermelhas (cell-danger) da tabela de comparação SIISP
+                // Usar detecção de colunas _siisp calculadas em vez de siisp > 0
+                const siisp = row.siispInternos || 0;
+                const temColunasSiisp = row.cafeIntSiisp !== null && row.cafeIntSiisp !== undefined;
+                
+                if (temColunasSiisp) {
+                    // USAR VALORES _SIISP JÁ CALCULADOS para estatísticas
+                    const tiposRefeicaoSiisp = [
+                        { valorSiisp: row.cafeIntSiisp, tipo: 'cafe' },
+                        { valorSiisp: row.almocoIntSiisp, tipo: 'almoco' },
+                        { valorSiisp: row.lancheIntSiisp, tipo: 'lanche' },
+                        { valorSiisp: row.jantarIntSiisp, tipo: 'jantar' }
+                    ];
+                    
+                    tiposRefeicaoSiisp.forEach(refeicao => {
+                        const classificacao = getClassificacaoSiisp(refeicao.valorSiisp);
+                        totalCelulasComSiisp++; // Contar total de células com dados SIISP
+                        
+                        if (classificacao.class === 'cell-warning') {
+                            diferencasPequenas++; // Contar célula azul (diferença pequena)
+                            // Somar valor monetário do excedente usando preço específico da refeição
+                            if (precosLote && refeicao.valorSiisp > 0) {
+                                totalExcedentesInternos += refeicao.valorSiisp * precosLote[refeicao.tipo].interno;
+                            }
+                        } else if (classificacao.class === 'cell-danger') {
+                            discrepanciasCriticas++; // Contar célula vermelha (discrepância crítica)
+                            // Somar valor monetário do excedente usando preço específico da refeição
+                            if (precosLote && refeicao.valorSiisp > 0) {
+                                totalExcedentesInternos += refeicao.valorSiisp * precosLote[refeicao.tipo].interno;
+                            }
+                        } else if (classificacao.class === 'cell-ok') {
+                            celulasOk++; // Contar célula verde (OK)
+                        }
+                    });
+                    
+                    // Verificar células de funcionários SIISP usando colunas calculadas
+                    const funcionariosSiispDetalhados = [
+                        {valorSiisp: row.cafeFuncSiisp, tipo: 'cafe'},
+                        {valorSiisp: row.almocoFuncSiisp, tipo: 'almoco'},
+                        {valorSiisp: row.lancheFuncSiisp, tipo: 'lanche'},
+                        {valorSiisp: row.jantarFuncSiisp, tipo: 'jantar'}
+                    ];
+                    
+                    funcionariosSiispDetalhados.forEach(func => {
+                        if (func.valorSiisp !== null && func.valorSiisp !== undefined) {
+                            totalCelulasComSiisp++; // Contar célula de funcionário
+                            
+                            // Para funcionários: valores <= 0 são OK (verde), valores > 0 são críticos (vermelho)
+                            if (func.valorSiisp <= 0) {
+                                celulasOk++; // Células verdes (OK)
+                            } else {
+                                discrepanciasCriticas++; // Células vermelhas (críticas)
+                                // Somar valor monetário do excedente usando preço específico da refeição
+                                if (precosLote) {
+                                    totalExcedentesFuncionarios += func.valorSiisp * precosLote[func.tipo].funcionario;
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+            
+            // Atualizar elementos na página com os novos IDs
+            const totalRefeicoes_elemento = document.getElementById('total-refeicoes');
+            const totalCafeInterno_elemento = document.getElementById('total-cafe-interno');
+            const totalCafeFuncionario_elemento = document.getElementById('total-cafe-funcionario');
+            const totalAlmocoInterno_elemento = document.getElementById('total-almoco-interno');
+            const totalAlmocoFuncionario_elemento = document.getElementById('total-almoco-funcionario');
+            const totalLancheInterno_elemento = document.getElementById('total-lanche-interno');
+            const totalLancheFuncionario_elemento = document.getElementById('total-lanche-funcionario');
+            const totalJantarInterno_elemento = document.getElementById('total-jantar-interno');
+            const totalJantarFuncionario_elemento = document.getElementById('total-jantar-funcionario');
+            const diferencasPequenas_elemento = document.getElementById('diferencas-pequenas');
+            const discrepanciasCriticas_elemento = document.getElementById('discrepancias-criticas');
+            const conformidadeGeral_elemento = document.getElementById('conformidade-geral');
+            const valorTotal_elemento = document.getElementById('valor-total');
+            const valorDesvio_elemento = document.getElementById('valor-desvio');
+            
+            // Elementos dos valores parciais
+            const valorCafeInterno_elemento = document.getElementById('valor-cafe-interno');
+            const valorCafeFuncionario_elemento = document.getElementById('valor-cafe-funcionario');
+            const valorAlmocoInterno_elemento = document.getElementById('valor-almoco-interno');
+            const valorAlmocoFuncionario_elemento = document.getElementById('valor-almoco-funcionario');
+            const valorLancheInterno_elemento = document.getElementById('valor-lanche-interno');
+            const valorLancheFuncionario_elemento = document.getElementById('valor-lanche-funcionario');
+            const valorJantarInterno_elemento = document.getElementById('valor-jantar-interno');
+            const valorJantarFuncionario_elemento = document.getElementById('valor-jantar-funcionario');
+            
+            // Calcular valor total das refeições e valores parciais
+            let valorTotal = 0;
+            let valorCafeInterno = 0;
+            let valorCafeFuncionario = 0;
+            let valorAlmocoInterno = 0;
+            let valorAlmocoFuncionario = 0;
+            let valorLancheInterno = 0;
+            let valorLancheFuncionario = 0;
+            let valorJantarInterno = 0;
+            let valorJantarFuncionario = 0;
+            let valorDesvio = 0;
+            
+            if (precosLote) {
+                valorCafeInterno = totalCafeInterno * precosLote.cafe.interno;
+                valorCafeFuncionario = totalCafeFuncionario * precosLote.cafe.funcionario;
+                valorAlmocoInterno = totalAlmocoInterno * precosLote.almoco.interno;
+                valorAlmocoFuncionario = totalAlmocoFuncionario * precosLote.almoco.funcionario;
+                valorLancheInterno = totalLancheInterno * precosLote.lanche.interno;
+                valorLancheFuncionario = totalLancheFuncionario * precosLote.lanche.funcionario;
+                valorJantarInterno = totalJantarInterno * precosLote.jantar.interno;
+                valorJantarFuncionario = totalJantarFuncionario * precosLote.jantar.funcionario;
+                
+                valorTotal = valorCafeInterno + valorCafeFuncionario + valorAlmocoInterno + valorAlmocoFuncionario + 
+                           valorLancheInterno + valorLancheFuncionario + valorJantarInterno + valorJantarFuncionario;
+                
+                // Calcular valor total do desvio (já calculado com preços específicos)
+                valorDesvio = totalExcedentesInternos + totalExcedentesFuncionarios;
+            }
+            
+            // Calcular conformidade geral: (valor geral - desvio) / valor geral * 100
+            let conformidadeGeral = 0;
+            if (precosLote && valorTotal > 0) {
+                conformidadeGeral = ((valorTotal - valorDesvio) / valorTotal) * 100;
+                // Garantir que não seja negativo
+                conformidadeGeral = Math.max(0, conformidadeGeral);
+            }
+            
+            // Atualizar valores
+            if (totalRefeicoes_elemento) totalRefeicoes_elemento.textContent = totalRefeicoes.toLocaleString('pt-BR');
+            if (totalCafeInterno_elemento) totalCafeInterno_elemento.textContent = totalCafeInterno.toLocaleString('pt-BR');
+            if (totalCafeFuncionario_elemento) totalCafeFuncionario_elemento.textContent = totalCafeFuncionario.toLocaleString('pt-BR');
+            if (totalAlmocoInterno_elemento) totalAlmocoInterno_elemento.textContent = totalAlmocoInterno.toLocaleString('pt-BR');
+            if (totalAlmocoFuncionario_elemento) totalAlmocoFuncionario_elemento.textContent = totalAlmocoFuncionario.toLocaleString('pt-BR');
+            if (totalLancheInterno_elemento) totalLancheInterno_elemento.textContent = totalLancheInterno.toLocaleString('pt-BR');
+            if (totalLancheFuncionario_elemento) totalLancheFuncionario_elemento.textContent = totalLancheFuncionario.toLocaleString('pt-BR');
+            if (totalJantarInterno_elemento) totalJantarInterno_elemento.textContent = totalJantarInterno.toLocaleString('pt-BR');
+            if (totalJantarFuncionario_elemento) totalJantarFuncionario_elemento.textContent = totalJantarFuncionario.toLocaleString('pt-BR');
+            if (diferencasPequenas_elemento) diferencasPequenas_elemento.textContent = diferencasPequenas.toString();
+            if (discrepanciasCriticas_elemento) discrepanciasCriticas_elemento.textContent = discrepanciasCriticas.toString();
+            if (conformidadeGeral_elemento) {
+                if (precosLote && valorTotal > 0) {
+                    conformidadeGeral_elemento.textContent = conformidadeGeral.toFixed(1) + '%';
+                } else {
+                    conformidadeGeral_elemento.textContent = 'N/A';
+                }
+            }
+            
+            // Atualizar valor total formatado como moeda brasileira
+            if (valorTotal_elemento) {
+                if (precosLote) {
+                    valorTotal_elemento.textContent = valorTotal.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                } else {
+                    valorTotal_elemento.textContent = 'N/A';
+                }
+            }
+            
+            // Atualizar valor de desvio formatado como moeda brasileira
+            if (valorDesvio_elemento) {
+                if (precosLote) {
+                    valorDesvio_elemento.textContent = valorDesvio.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                } else {
+                    valorDesvio_elemento.textContent = 'N/A';
+                }
+            }
+            
+            // Atualizar valores parciais formatados como moeda brasileira
+            if (precosLote) {
+                if (valorCafeInterno_elemento) {
+                    valorCafeInterno_elemento.textContent = valorCafeInterno.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorCafeFuncionario_elemento) {
+                    valorCafeFuncionario_elemento.textContent = valorCafeFuncionario.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorAlmocoInterno_elemento) {
+                    valorAlmocoInterno_elemento.textContent = valorAlmocoInterno.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorAlmocoFuncionario_elemento) {
+                    valorAlmocoFuncionario_elemento.textContent = valorAlmocoFuncionario.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorLancheInterno_elemento) {
+                    valorLancheInterno_elemento.textContent = valorLancheInterno.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorLancheFuncionario_elemento) {
+                    valorLancheFuncionario_elemento.textContent = valorLancheFuncionario.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorJantarInterno_elemento) {
+                    valorJantarInterno_elemento.textContent = valorJantarInterno.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                if (valorJantarFuncionario_elemento) {
+                    valorJantarFuncionario_elemento.textContent = valorJantarFuncionario.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+            } else {
+                // Se não há preços, mostrar N/A para todos os valores parciais e desvio
+                [valorCafeInterno_elemento, valorCafeFuncionario_elemento, valorAlmocoInterno_elemento, 
+                 valorAlmocoFuncionario_elemento, valorLancheInterno_elemento, valorLancheFuncionario_elemento,
+                 valorJantarInterno_elemento, valorJantarFuncionario_elemento, valorDesvio_elemento].forEach(elemento => {
+                    if (elemento) elemento.textContent = 'N/A';
+                });
+            }
+        }
+
+        function carregarTabelaDados() {
+            const tbody = document.getElementById('tbody-dados-refeicoes');
+            tbody.innerHTML = '';
+
+            dadosRefeicoes.forEach(row => {
+                const tr = document.createElement('tr');
+                const totalDia = row.cafeInt + row.cafeFunc + row.almocoInt + row.almocoFunc + row.lancheInt + row.lancheFunc + row.jantarInt + row.jantarFunc;
+                
+                tr.innerHTML = `
+                    <td>${row.data}</td>
+                    <td>${row.unidade}</td>
+                    <td style="text-align: center; background-color: var(--gray-50);">${row.cafeInt}</td>
+                    <td style="text-align: center;">${row.cafeFunc}</td>
+                    <td style="text-align: center; background-color: var(--gray-50);">${row.almocoInt}</td>
+                    <td style="text-align: center;">${row.almocoFunc}</td>
+                    <td style="text-align: center; background-color: var(--gray-50);">${row.lancheInt}</td>
+                    <td style="text-align: center;">${row.lancheFunc}</td>
+                    <td style="text-align: center; background-color: var(--gray-50);">${row.jantarInt}</td>
+                    <td style="text-align: center;">${row.jantarFunc}</td>
+                    <td style="text-align: center; font-weight: 600; background-color: var(--light-blue);">${totalDia}</td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        function carregarTabelaComparacao() {
+            const tbody = document.getElementById('tbody-comparacao-siisp');
+            tbody.innerHTML = '';
+
+            dadosRefeicoes.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                // Usar dados reais do SIISP ou 0 se não disponível
+                const siisp = row.siispInternos || 0;
+                
+                // Verificar se há colunas SIISP calculadas
+                const temColunasSiisp = row.cafeIntSiisp !== null && row.cafeIntSiisp !== undefined;
+                const statusSiisp = temColunasSiisp ? 'Calculado' : 'Não disponível';
+                
+                // Classificações para INTERNOS usando getClassificacaoSiisp
+                const cafeIntClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.cafeIntSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+                
+                const almocoIntClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.almocoIntSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+                
+                const lancheIntClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.lancheIntSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+                
+                const jantarIntClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.jantarIntSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+
+                // Classificações para FUNCIONÁRIOS usando getClassificacaoSiisp
+                const cafeFuncClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.cafeFuncSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+                
+                // DEBUG: Log dos primeiros 3 dias para café funcionário
+                if (dadosRefeicoes.indexOf(row) < 3) {
+                    console.log(`DEBUG Dia ${dadosRefeicoes.indexOf(row) + 1}:`);
+                    console.log('  row.cafeFuncSiisp:', row.cafeFuncSiisp);
+                    console.log('  cafeFuncClass:', cafeFuncClass);
+                }
+                
+                const almocoFuncClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.almocoFuncSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+                
+                const lancheFuncClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.lancheFuncSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+                
+                const jantarFuncClass = temColunasSiisp ? 
+                    getClassificacaoSiisp(row.jantarFuncSiisp) : 
+                    { class: 'cell-na', display: 'N/A' };
+
+                tr.innerHTML = `
+                    <td>${row.data}</td>
+                    <td>${row.unidade}</td>
+                    <td style="text-align: center; font-weight: 600; background-color: var(--gray-100);">
+                        ${siisp}
+                    </td>
+                    <td class="${cafeIntClass.class}" style="text-align: center;">
+                        ${cafeIntClass.display}
+                    </td>
+                    <td class="${cafeFuncClass.class}" style="text-align: center;">
+                        ${cafeFuncClass.display}
+                    </td>
+                    <td class="${almocoIntClass.class}" style="text-align: center;">
+                        ${almocoIntClass.display}
+                    </td>
+                    <td class="${almocoFuncClass.class}" style="text-align: center;">
+                        ${almocoFuncClass.display}
+                    </td>
+                    <td class="${lancheIntClass.class}" style="text-align: center;">
+                        ${lancheIntClass.display}
+                    </td>
+                    <td class="${lancheFuncClass.class}" style="text-align: center;">
+                        ${lancheFuncClass.display}
+                    </td>
+                    <td class="${jantarIntClass.class}" style="text-align: center;">
+                        ${jantarIntClass.display}
+                    </td>
+                    <td class="${jantarFuncClass.class}" style="text-align: center;">
+                        ${jantarFuncClass.display}
+                    </td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getClassificacao(refeicoes, siisp) {
+            const diferenca = refeicoes - siisp;
+            
+            if (diferenca <= 0) {
+                return { class: 'cell-ok', display: 'OK' };
+            } else if (diferenca <= 5) {
+                return { class: 'cell-warning', display: `+${diferenca}` };
+            } else {
+                return { class: 'cell-danger', display: `+${diferenca}` };
+            }
+        }
+
+        // Nova função para classificar baseada nos valores _siisp já calculados
+        function getClassificacaoSiisp(valorSiisp) {
+            // valorSiisp já é a diferença (refeicoes - dados_siisp)
+            if (valorSiisp <= 0) {
+                return { class: 'cell-ok', display: 'OK' };
+            } else if (valorSiisp <= 5) {
+                return { class: 'cell-warning', display: `+${valorSiisp}` };
+            } else {
+                return { class: 'cell-danger', display: `+${valorSiisp}` };
+            }
+        }
+
+
+
+        // Controle das Abas
+        function initTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+                tabButtons.forEach(button => {/* ...existing code... */});
+
+                // Ativar a primeira aba por padrão
+                if (tabButtons.length > 0) {/* ...existing code... */}
+
+                // Botão flutuante de troca de tabela
+                const btnTrocaTabela = document.getElementById('btn-troca-tabela');
+                if (btnTrocaTabela) {
+                    btnTrocaTabela.addEventListener('click', function() {
+                        const tab1 = document.getElementById('tab-dados-refeicoes');
+                        const tab2 = document.getElementById('tab-comparacao-siisp');
+                        const tabButtons = document.querySelectorAll('.tab-button');
+                        let tabelaContainer1 = tab1 ? tab1.querySelector('.table-container, .tabela-container') : null;
+                        let tabelaContainer2 = tab2 ? tab2.querySelector('.table-container, .tabela-container') : null;
+                        let scrollPos = 0;
+                        // Alterna para a outra aba
+                        if (tab1 && tab1.style.display !== 'none' && tabelaContainer1) {
+                            scrollPos = tabelaContainer1.scrollTop;
+                            tab1.style.display = 'none';
+                            tab2.style.display = 'block';
+                            if (tabelaContainer2) tabelaContainer2.scrollTop = scrollPos;
+                            // Atualizar botões de aba
+                            tabButtons.forEach(btn => {
+                                if (btn.dataset.tab === 'dados-refeicoes') {
+                                    btn.classList.remove('active');
+                                    btn.style.borderBottomColor = 'transparent';
+                                    btn.style.color = 'var(--gray-600)';
+                                    btn.style.backgroundColor = 'transparent';
+                                    btn.style.marginBottom = '';
+                                } else if (btn.dataset.tab === 'comparacao-siisp') {
+                                    btn.classList.add('active');
+                                    btn.style.borderBottomColor = 'var(--primary-color)';
+                                    btn.style.color = 'var(--primary-color)';
+                                    btn.style.backgroundColor = 'white';
+                                    btn.style.marginBottom = '-2px';
+                                }
+                            });
+                        } else if (tab2 && tab2.style.display !== 'none' && tabelaContainer2) {
+                            scrollPos = tabelaContainer2.scrollTop;
+                            tab2.style.display = 'none';
+                            tab1.style.display = 'block';
+                            if (tabelaContainer1) tabelaContainer1.scrollTop = scrollPos;
+                            // Atualizar botões de aba
+                            tabButtons.forEach(btn => {
+                                if (btn.dataset.tab === 'comparacao-siisp') {
+                                    btn.classList.remove('active');
+                                    btn.style.borderBottomColor = 'transparent';
+                                    btn.style.color = 'var(--gray-600)';
+                                    btn.style.backgroundColor = 'transparent';
+                                    btn.style.marginBottom = '';
+                                } else if (btn.dataset.tab === 'dados-refeicoes') {
+                                    btn.classList.add('active');
+                                    btn.style.borderBottomColor = 'var(--primary-color)';
+                                    btn.style.color = 'var(--primary-color)';
+                                    btn.style.backgroundColor = 'white';
+                                    btn.style.marginBottom = '-2px';
+                                }
+                            });
+                        }
+                    });
+                }
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTab = this.dataset.tab;
+                    
+                    // Remover classe active de todos os botões
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('active');
+                        btn.style.borderBottomColor = 'transparent';
+                        btn.style.color = 'var(--gray-600)';
+                        btn.style.backgroundColor = 'transparent';
+                    });
+                    
+                    // Adicionar classe active ao botão clicado
+                    this.classList.add('active');
+                    this.style.borderBottomColor = 'var(--primary-color)';
+                    this.style.color = 'var(--primary-color)';
+                    this.style.backgroundColor = 'white';
+                    this.style.marginBottom = '-2px';
+                    
+                    // Esconder todos os conteúdos
+                    tabContents.forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    
+                    // Mostrar o conteúdo da aba selecionada
+                    const targetContent = document.getElementById('tab-' + targetTab);
+                    if (targetContent) {
+                        targetContent.style.display = 'block';
+                    }
+                });
+            });
+
+            // Ativar a primeira aba por padrão
+            if (tabButtons.length > 0) {
+                tabButtons[0].click();
+            }
+        }
+
+        // Controle das Sub-abas de Resumos
+        function initResumoTabs() {
+            const resumoTabButtons = document.querySelectorAll('.resumo-tab-button');
+            const resumoTabContents = document.querySelectorAll('.resumo-tab-content');
+
+            resumoTabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTab = this.dataset.resumoTab;
+                    
+                    // Remover classe active de todos os botões
+                    resumoTabButtons.forEach(btn => {
+                        btn.classList.remove('active');
+                        btn.style.borderBottomColor = 'transparent';
+                        btn.style.color = 'var(--gray-600)';
+                        btn.style.backgroundColor = 'transparent';
+                    });
+                    
+                    // Adicionar classe active ao botão clicado
+                    this.classList.add('active');
+                    this.style.borderBottomColor = 'var(--primary-color)';
+                    this.style.color = 'var(--primary-color)';
+                    this.style.backgroundColor = 'white';
+                    this.style.marginBottom = '-2px';
+                    
+                    // Esconder todos os conteúdos
+                    resumoTabContents.forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    
+                    // Mostrar o conteúdo da sub-aba selecionada
+                    const targetContent = document.getElementById('resumo-tab-' + targetTab);
+                    if (targetContent) {
+                        targetContent.style.display = 'block';
+                    }
+                });
+            });
+
+            // Ativar a primeira sub-aba por padrão
+            if (resumoTabButtons.length > 0) {
+                resumoTabButtons[0].click();
+            }
+        }
+
+        // Controles das seções
+        document.getElementById('btn-adicionar-dados').addEventListener('click', mostrarSecaoImportacao);
+        document.getElementById('btn-entrada-manual').addEventListener('click', mostrarSecaoManual);
+        document.getElementById('btn-excluir-dados').addEventListener('click', mostrarSecaoExcluir);
+        document.getElementById('btn-adicionar-siisp').addEventListener('click', mostrarSecaoSiisp);
+
+        function mostrarSecaoImportacao() {
+            document.getElementById('secao-importacao').style.display = 'block';
+            document.getElementById('secao-manual').style.display = 'none';
+            document.getElementById('secao-importacao').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function mostrarSecaoManual() {
+            document.getElementById('secao-importacao').style.display = 'none';
+            document.getElementById('secao-exclusao').style.display = 'none';
+            document.getElementById('secao-manual').style.display = 'block';
+            document.getElementById('secao-manual').scrollIntoView({ behavior: 'smooth' });
+            
+            // Inicializar seletor de mês/ano da entrada manual
+            initMesAnoManual();
+        }
+
+        function mostrarSecaoExcluir() {
+            document.getElementById('secao-importacao').style.display = 'none';
+            document.getElementById('secao-manual').style.display = 'none';
+            document.getElementById('secao-exclusao').style.display = 'block';
+            document.getElementById('secao-exclusao').scrollIntoView({ behavior: 'smooth' });
+            
+            // Definir mês anterior como padrão
+            const now = new Date();
+            let mesAnterior = now.getMonth() + 1; // getMonth() retorna 0-11, queremos 1-12
+            let anoAnterior = now.getFullYear();
+            
+            if (mesAnterior === 1) {
+                mesAnterior = 12;
+                anoAnterior--;
+            } else {
+                mesAnterior--;
+            }
+            
+            document.getElementById('mes-exclusao').value = mesAnterior.toString();
+            document.getElementById('ano-exclusao').value = anoAnterior.toString();
+        }
+
+        function mostrarSecaoSiisp() {
+            document.getElementById('secao-importacao').style.display = 'none';
+            document.getElementById('secao-manual').style.display = 'none';
+            document.getElementById('secao-exclusao').style.display = 'none';
+            document.getElementById('secao-siisp').style.display = 'block';
+            document.getElementById('secao-siisp').scrollIntoView({ behavior: 'smooth' });
+            
+            // Inicializar seletor de mês/ano do SIISP
+            initMesAnoSiisp();
+        }
+
+        // Botões de cancelar
+        document.getElementById('btn-cancelar-import').addEventListener('click', function() {
+            document.getElementById('secao-importacao').style.display = 'none';
+        });
+
+        document.getElementById('btn-cancelar-manual').addEventListener('click', function() {
+            document.getElementById('secao-manual').style.display = 'none';
+        });
+
+        document.getElementById('btn-cancelar-exclusao').addEventListener('click', function() {
+            document.getElementById('secao-exclusao').style.display = 'none';
+        });
+
+        document.getElementById('btn-cancelar-siisp').addEventListener('click', function() {
+            document.getElementById('secao-siisp').style.display = 'none';
+        });
+
+        // Processar adição de números SIISP
+        document.getElementById('btn-processar-siisp').addEventListener('click', function() {
+            const unidade = document.getElementById('select-unidade-siisp').value;
+            const mes = document.getElementById('mes-siisp').value;
+            const ano = document.getElementById('ano-siisp').value;
+            const numerosSiisp = document.getElementById('numeros-siisp').value;
+            
+            // Validação da unidade
+            if (!unidade) {
+                showNotification('warning', 'Campo obrigatório', 'Por favor, selecione a unidade.');
+                return;
+            }
+            
+            // Validação do mês e ano
+            if (!mes || !ano) {
+                showNotification('warning', 'Campos obrigatórios', 'Por favor, selecione o mês e ano.');
+                return;
+            }
+            
+            // Validação dos números SIISP
+            if (!numerosSiisp || numerosSiisp.trim() === '') {
+                showNotification('warning', 'Campo obrigatório', 'Por favor, cole os números SIISP.');
+                return;
+            }
+            
+            console.log('Dados SIISP coletados:', {
+                unidade: unidade,
+                mes: mes,
+                ano: ano,
+                numerosSiisp: numerosSiisp.substring(0, 100) + '...' // Log truncado
+            });
+            
+            // Preparar dados para enviar à API
+            const dadosParaApi = {
+                lote_id: loteId,
+                mes: parseInt(mes),
+                ano: parseInt(ano),
+                unidade: unidade,
+                dados_siisp: numerosSiisp
+            };
+            
+            console.log('Enviando dados SIISP para API:', dadosParaApi);
+            
+            // Chamar API para adicionar números SIISP
+            fetch('/api/adicionar-siisp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(dadosParaApi)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Erro no servidor');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Mostrar notificação de sucesso
+                    const validacao = data.validacao || {};
+                    const siisp = validacao.siisp || {};
+                    const registros = siisp.registros_processados || 0;
+                    const mensagem = `${registros} números SIISP adicionados para ${unidade} em ${mes}/${ano}.`;
+                    
+                    showNotification('success', 'Dados SIISP salvos com sucesso!', mensagem);
+                    
+                    // Fechar seção e limpar formulário
+                    document.getElementById('secao-siisp').style.display = 'none';
+                    document.getElementById('select-unidade-siisp').value = '';
+                    document.getElementById('numeros-siisp').value = '';
+                    
+                    // Log de sucesso
+                    console.log('✅ Números SIISP adicionados:', data.registro);
+                    
+                    // Recarregar a página para mostrar os novos dados
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                    
+                } else {
+                    // Erro retornado pela API
+                    showNotification('error', 'Erro ao adicionar SIISP', data.error || 'Erro desconhecido na API.');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro ao adicionar números SIISP:', error);
+                
+                // Mostrar notificação de erro
+                if (error.message.includes('obrigatórios')) {
+                    showNotification('error', 'Dados inválidos', error.message);
+                } else if (error.message.includes('não confere')) {
+                    showNotification('error', 'Quantidade incorreta', error.message);
+                } else if (error.message.includes('inválido na linha')) {
+                    showNotification('error', 'Formato inválido', error.message);
+                } else if (error.message.includes('Não foram encontrados dados')) {
+                    showNotification('error', 'Dados não encontrados', error.message);
+                } else {
+                    showNotification('error', 'Erro de conexão', 'Erro de conexão com o servidor. Verifique sua conexão e tente novamente.');
+                }
+            });
+        });
+
+        // Processar exclusão
+        document.getElementById('btn-confirmar-exclusao').addEventListener('click', function() {
+            const unidade = document.getElementById('select-unidade-exclusao').value;
+            const mes = document.getElementById('mes-exclusao').value;
+            const ano = document.getElementById('ano-exclusao').value;
+            
+            // Validação da unidade
+            if (!unidade) {
+                showNotification('warning', 'Unidade não selecionada', 'Por favor, selecione a unidade para excluir os dados.');
+                return;
+            }
+            
+            // Validação do mês e ano
+            if (!mes || !ano) {
+                showNotification('warning', 'Campos obrigatórios', 'Por favor, selecione o mês e ano para exclusão.');
+                return;
+            }
+            
+            // Preparar dados para enviar à API
+            const dadosExclusao = {
+                lote_id: loteId,
+                mes: parseInt(mes),
+                ano: parseInt(ano),
+                unidade: unidade
+            };
+            
+            // Mostrar modal de confirmação personalizado
+            mostrarConfirmacaoExclusao(unidade, mes, ano, dadosExclusao);
+        });
+
+        // Inicializar seletor de mês/ano da importação
+        function initMesAnoImport() {
+            const mesSelect = document.getElementById('mes-import');
+            const anoInput = document.getElementById('ano-import');
+            const mesAnoDisplay = document.getElementById('mes-ano-display-import');
+            const mesAnoText = document.getElementById('mes-ano-text-import');
+            
+            // Definir mês anterior como padrão
+            const now = new Date();
+            let mesAnterior = now.getMonth(); // getMonth() retorna 0-11
+            let anoAnterior = now.getFullYear();
+            
+            if (mesAnterior === 0) {
+                mesAnterior = 12;
+                anoAnterior--;
+            }
+            
+            mesSelect.value = mesAnterior.toString();
+            anoInput.value = anoAnterior.toString();
+            atualizarDisplayMesAno();
+            
+            // Eventos para atualizar display quando valores mudarem
+            mesSelect.addEventListener('change', atualizarDisplayMesAno);
+            anoInput.addEventListener('input', atualizarDisplayMesAno);
+            
+            // Clique no display para focar no primeiro input
+            mesAnoDisplay.addEventListener('click', function() {
+                mesSelect.focus();
+            });
+            
+            function atualizarDisplayMesAno() {
+                const meses = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                ];
+                
+                const mesIndex = parseInt(mesSelect.value) - 1;
+                const mesNome = meses[mesIndex] || 'Mês';
+                const ano = anoInput.value || 'Ano';
+                
+                mesAnoText.textContent = `${mesNome}/${ano}`;
+            }
+        }
+        
+        // Inicializar seletor de mês/ano da entrada manual
+        function initMesAnoManual() {
+            const mesSelect = document.getElementById('mes-manual');
+            const anoInput = document.getElementById('ano-manual');
+            const mesAnoDisplay = document.getElementById('mes-ano-display-manual');
+            const mesAnoText = document.getElementById('mes-ano-text-manual');
+            
+            // Definir mês anterior como padrão
+            const now = new Date();
+            let mesAnterior = now.getMonth(); // getMonth() retorna 0-11
+            let anoAnterior = now.getFullYear();
+            
+            if (mesAnterior === 0) {
+                mesAnterior = 12;
+                anoAnterior--;
+            }
+            
+            mesSelect.value = mesAnterior.toString();
+            anoInput.value = anoAnterior.toString();
+            atualizarDisplayMesAnoManual();
+            gerarTabelaManual(); // Gerar tabela inicial
+            
+            // Eventos para atualizar display quando valores mudarem
+            mesSelect.addEventListener('change', function() {
+                atualizarDisplayMesAnoManual();
+                gerarTabelaManual();
+            });
+            anoInput.addEventListener('input', function() {
+                atualizarDisplayMesAnoManual();
+                gerarTabelaManual();
+            });
+            
+            // Clique no display para focar no primeiro input
+            mesAnoDisplay.addEventListener('click', function() {
+                mesSelect.focus();
+            });
+            
+            function atualizarDisplayMesAnoManual() {
+                const meses = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                ];
+                
+                const mesIndex = parseInt(mesSelect.value) - 1;
+                const mesNome = meses[mesIndex] || 'Mês';
+                const ano = anoInput.value || 'Ano';
+                
+                mesAnoText.textContent = `${mesNome}/${ano}`;
+            }
+        }
+
+        // Inicializar seletor de mês/ano do SIISP
+        function initMesAnoSiisp() {
+            const mesSelect = document.getElementById('mes-siisp');
+            const anoInput = document.getElementById('ano-siisp');
+            const mesAnoDisplay = document.getElementById('mes-ano-display-siisp');
+            const mesAnoText = document.getElementById('mes-ano-text-siisp');
+            
+            // Definir mês anterior como padrão
+            const now = new Date();
+            let mesAnterior = now.getMonth(); // getMonth() retorna 0-11
+            let anoAnterior = now.getFullYear();
+            
+            if (mesAnterior === 0) {
+                mesAnterior = 12;
+                anoAnterior--;
+            }
+            
+            mesSelect.value = mesAnterior.toString();
+            anoInput.value = anoAnterior.toString();
+            atualizarDisplayMesAnoSiisp();
+            
+            // Eventos para atualizar display quando valores mudarem
+            mesSelect.addEventListener('change', atualizarDisplayMesAnoSiisp);
+            anoInput.addEventListener('input', atualizarDisplayMesAnoSiisp);
+            
+            // Clique no display para focar no primeiro input
+            mesAnoDisplay.addEventListener('click', function() {
+                mesSelect.focus();
+            });
+            
+            function atualizarDisplayMesAnoSiisp() {
+                const meses = [
+                    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                ];
+                
+                const mesIndex = parseInt(mesSelect.value) - 1;
+                const mesNome = meses[mesIndex] || 'Mês';
+                const ano = anoInput.value || 'Ano';
+                
+                mesAnoText.textContent = `${mesNome}/${ano}`;
+            }
+        }
+
+        // Função para gerar tabela manual baseada no mês/ano selecionado
+        function gerarTabelaManual() {
+            const mesSelect = document.getElementById('mes-manual');
+            const anoInput = document.getElementById('ano-manual');
+            const tbody = document.getElementById('tbody-entrada-manual');
+            
+            if (!mesSelect || !anoInput || !tbody) return;
+            
+            const mes = parseInt(mesSelect.value);
+            const ano = parseInt(anoInput.value);
+            
+            // Calcular número de dias no mês
+            const diasNoMes = new Date(ano, mes, 0).getDate();
+            
+            // Limpar tabela
+            tbody.innerHTML = '';
+            
+            // Gerar linhas para cada dia do mês
+            for (let dia = 1; dia <= diasNoMes; dia++) {
+                const tr = document.createElement('tr');
+                // Formatar data como DD/MM/AAAA
+                const dataFormatada = `${dia.toString().padStart(2, '0')}/${mes.toString().padStart(2, '0')}/${ano}`;
+                tr.innerHTML = `
+                    <td class="data-column"><input type="text" class="input-data" value="${dataFormatada}" data-col="data" data-dia="${dia}" style="width: 100px; text-align: center;"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="cafe-int" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="cafe-func" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="almoco-int" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="almoco-func" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="lanche-int" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="lanche-func" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="jantar-int" data-dia="${dia}"></td>
+                    <td><input type="number" min="0" placeholder="0" data-col="jantar-func" data-dia="${dia}"></td>
+                `;
+                tbody.appendChild(tr);
+            }
+            
+            // Adicionar evento de navegação por teclado
+            adicionarNavegacaoTeclado();
+        }
+
+        // Função para adicionar navegação por teclado na tabela (estilo Excel)
+        function adicionarNavegacaoTeclado() {
+            const inputs = document.querySelectorAll('#tabela-entrada-manual input');
+            
+            inputs.forEach((input, index) => {
+                input.addEventListener('keydown', function(e) {
+                    let targetIndex = index;
+                    
+                    switch(e.key) {
+                        case 'Tab':
+                            // Tab já funciona naturalmente
+                            break;
+                        case 'Enter':
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            targetIndex = index + 8; // Próxima linha (8 colunas de dados)
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            targetIndex = index - 8; // Linha anterior
+                            break;
+                        case 'ArrowRight':
+                            if (input.selectionStart === input.value.length) {
+                                e.preventDefault();
+                                targetIndex = index + 1;
+                            }
+                            break;
+                        case 'ArrowLeft':
+                            if (input.selectionStart === 0) {
+                                e.preventDefault();
+                                targetIndex = index - 1;
+                            }
+                            break;
+                    }
+                    
+                    // Focar no input de destino se existir
+                    if (inputs[targetIndex] && targetIndex !== index) {
+                        inputs[targetIndex].focus();
+                        inputs[targetIndex].select();
+                    }
+                });
+
+                // Adicionar funcionalidade de paste especial (estilo Excel)
+                input.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    
+                    // Obter dados do clipboard
+                    const pasteData = e.clipboardData.getData('text');
+                    
+                    if (!pasteData.trim()) return;
+                    
+                    // Detectar se são dados tabulares (múltiplas linhas/colunas)
+                    if (isTabularData(pasteData)) {
+                        colarDadosTabulares(pasteData, input, index);
+                    } else {
+                        // Se for um valor simples, colar normalmente
+                        input.value = pasteData.trim();
+                    }
+                });
+            });
+        }
+
+        // Função para detectar se os dados são tabulares
+        function isTabularData(data) {
+            const lines = data.trim().split('\n');
+            if (lines.length <= 1) return false;
+            
+            // Verificar se há tabs ou múltiplos espaços (indicando colunas)
+            const hasTabsOrSpaces = lines.some(line => 
+                line.includes('\t') || line.match(/\s{2,}/) || line.split(/\s+/).length > 1
+            );
+            
+            return hasTabsOrSpaces || lines.length > 1;
+        }
+
+        // Função para colar dados tabulares nas células
+        function colarDadosTabulares(data, startInput, startIndex) {
+            const lines = data.trim().split('\n');
+            const inputs = document.querySelectorAll('#tabela-entrada-manual input');
+            const inputsPerRow = 9; // Agora são 9 colunas (incluindo data)
+            const table = document.getElementById('tabela-entrada-manual');
+            const rows = table.querySelectorAll('tbody tr');
+
+            // Descobrir a linha e coluna inicial a partir do input clicado
+            const startRowIndex = Math.floor(startIndex / inputsPerRow);
+            const startColIndex = startIndex % inputsPerRow; // 0 = coluna de data
+
+            lines.forEach((line, rowOffset) => {
+                // Detectar separador (TAB tem prioridade sobre espaços)
+                let values;
+                if (line.includes('\t')) {
+                    values = line.split('\t');
+                } else {
+                    // Para espaços, dividir por múltiplos espaços ou espaços simples
+                    values = line.split(/\s+/).filter(v => v.trim() !== '');
+                }
+
+                // Calcular linha de destino baseada na posição inicial
+                const targetRowIndex = startRowIndex + rowOffset;
+                if (targetRowIndex >= rows.length) return; // Não ultrapassar o número de linhas
+
+                const targetRow = rows[targetRowIndex];
+                const targetInputs = targetRow.querySelectorAll('input');
+
+                // Colar valores a partir da coluna do input clicado
+                values.forEach((value, colOffset) => {
+                    const inputIndexInRow = startColIndex + colOffset;
+                    if (inputIndexInRow < inputsPerRow) {
+                        const targetInput = targetInputs[inputIndexInRow];
+                        if (targetInput) {
+                            // Se for a coluna de data (primeira), aceita texto, senão só números
+                            if (inputIndexInRow === 0) {
+                                targetInput.value = value.trim();
+                            } else {
+                                const numericValue = value.replace(/[^\d]/g, '');
+                                if (numericValue) {
+                                    targetInput.value = numericValue;
+                                }
+                            }
+                            // Adicionar efeito visual para mostrar que foi colado
+                            targetInput.style.backgroundColor = '#d4edda';
+                            setTimeout(() => {
+                                targetInput.style.backgroundColor = '';
+                            }, 1000);
+                        }
+                    }
+                });
+            });
+
+            // Mostrar notificação de sucesso
+            const totalCells = lines.reduce((acc, line) => {
+                const values = line.includes('\t') ? line.split('\t') : line.split(/\s+/).filter(v => v.trim() !== '');
+                return acc + values.length;
+            }, 0);
+
+            if (totalCells > 0) {
+                showNotification('success', 'Dados colados com sucesso!', `${totalCells} valores foram inseridos na tabela.`);
+            }
+        }
+        
+        // Processar importação
+        document.getElementById('btn-processar-import').addEventListener('click', function() {
+            const unidade = document.getElementById('select-unidade-import').value;
+            
+            // Debug: verificar se o elemento existe
+            const textoElement = document.getElementById('texto-pdf');
+            console.log('🔍 Debug - Elemento texto-pdf encontrado:', textoElement);
+            
+            // Capturar texto SEM trim() para preservar espaços e quebras de linha
+            const textoPdf = textoElement ? textoElement.value : '';
+            const mes = document.getElementById('mes-import').value;
+            const ano = document.getElementById('ano-import').value;
+            const dadosSiisp = document.getElementById('dados-siisp').value.trim();
+            
+            // Debug: verificar se o texto está sendo capturado (mostrar caracteres especiais)
+            console.log('🔍 Debug - Texto capturado (raw):', JSON.stringify(textoPdf));
+            console.log('🔍 Debug - Tamanho do texto:', textoPdf.length);
+            console.log('🔍 Debug - Primeiros 100 chars:', textoPdf.substring(0, 100));
+            
+            if (!unidade) {
+                showNotification('warning', 'Campo obrigatório', 'Por favor, selecione a unidade.');
+                return;
+            }
+            
+            if (!mes || !ano) {
+                showNotification('warning', 'Campos obrigatórios', 'Por favor, defina o mês e ano de referência.');
+                return;
+            }
+            
+            if (!textoPdf || textoPdf.trim() === '') {
+                showNotification('warning', 'Campo obrigatório', 'Por favor, insira o texto extraído do PDF ou Excel.');
+                return;
+            }
+            
+            // Preparar dados para enviar à API
+            const dadosParaApi = {
+                lote_id: loteId,
+                mes: parseInt(mes),
+                ano: parseInt(ano),
+                unidade: unidade,
+                dados_siisp: dadosSiisp,  // Enviar dados SIISP como string original
+                texto: textoPdf
+            };
+            
+            console.log('Enviando dados para API:', dadosParaApi);
+            
+            // Chamar API para salvar dados
+            fetch('/api/adicionar-dados', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dadosParaApi)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(errorData => {
+                        throw new Error(JSON.stringify(errorData));
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    const meses = [
+                        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+                    ];
+                    const mesNome = meses[parseInt(mes) - 1];
+                    
+                    // Usar estatísticas retornadas pelo backend
+                    const stats = data.estatisticas || {};
+                    const diasSalvos = stats.registros_processados || 0;
+                    const totalRefeicoes = stats.total_refeicoes || 0;
+                    
+                    // Verificar se houve filtragem (linhas < dias do mês)
+                    const mesNumero = parseInt(mes);
+                    const anoNumero = parseInt(ano);
+                    const diasNoMes = new Date(anoNumero, mesNumero, 0).getDate();
+                    
+                    let mensagem;
+                    if (diasSalvos < diasNoMes) {
+                        mensagem = `${diasSalvos} de ${diasNoMes} dias foram salvos para ${unidade} em ${mesNome}/${ano} (filtrados por período de contrato). Total de refeições: ${totalRefeicoes}.`;
+                    } else {
+                        mensagem = `${diasSalvos} registros salvos para ${unidade} em ${mesNome}/${ano}. Total de refeições: ${totalRefeicoes}.`;
+                    }
+                    
+                    showNotification('success', 'Dados salvos com sucesso!', mensagem);
+                    
+                    document.getElementById('secao-importacao').style.display = 'none';
+                    
+                    // Limpar formulário
+                    document.getElementById('texto-pdf').value = '';
+                    document.getElementById('dados-siisp').value = '';
+                    
+                    // Recarregar página com filtros aplicados para a unidade e período recém-adicionados
+                    setTimeout(() => {
+                        window.location.href = `?unidade=${encodeURIComponent(unidade)}&mes=${mes}&ano=${ano}`;
+                    }, 1500);
+                    
+                    console.log('✅ Dados salvos:', data.registro);
+                } else {
+                    showNotification('error', 'Erro ao salvar dados', data.error || 'Erro desconhecido ao processar os dados.');
+                    console.error('❌ Erro da API:', data);
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro completo:', error);
+                
+                try {
+                    // Tentar fazer parse do erro para ver se é erro de validação
+                    const errorData = JSON.parse(error.message);
+                    
+                    if (errorData.validacao && !errorData.validacao.valido) {
+                        // Erro de validação - mostrar popup detalhado
+                        const detalhesValidacao = `${errorData.validacao.detalhes}. ` +
+                            `Registros encontrados: ${errorData.validacao.registros_processados}, ` +
+                            `Dias esperados: ${errorData.validacao.dias_esperados}. ` +
+                            `Os dados devem conter exatamente ${errorData.validacao.dias_esperados} linhas.`;
+                        
+                        showNotification('error', 'Dados rejeitados - Inconsistência detectada', detalhesValidacao);
+                    } else {
+                        // Outro tipo de erro
+                        showNotification('error', 'Erro do servidor', errorData.error || 'Erro desconhecido do servidor.');
+                    }
+                } catch (parseError) {
+                    // Erro de conexão ou outro tipo
+                    showNotification('error', 'Erro de conexão', 'Erro de conexão com o servidor. Verifique sua conexão e tente novamente.');
+                }
+                
+                console.error('❌ Erro de rede:', error);
+            });
+        });
+
+        // Salvar entrada manual
+        document.getElementById('btn-salvar-manual').addEventListener('click', function() {
+            const unidade = document.getElementById('select-unidade-manual').value;
+            const mes = document.getElementById('mes-manual').value;
+            const ano = document.getElementById('ano-manual').value;
+            
+            // Validação da unidade
+            if (!unidade) {
+                showNotification('warning', 'Campo obrigatório', 'Por favor, selecione a unidade.');
+                return;
+            }
+            
+            // Validação do mês e ano
+            if (!mes || !ano) {
+                showNotification('warning', 'Campos obrigatórios', 'Por favor, selecione o mês e ano.');
+                return;
+            }
+
+            // Coletar dados da tabela
+            const dadosTabela = coletarDadosTabela();
+            
+            // Verificar se há pelo menos um valor preenchido
+            const temDados = dadosTabela.some(dia => 
+                dia.cafe_interno > 0 || dia.cafe_funcionario > 0 || dia.almoco_interno > 0 || dia.almoco_funcionario > 0 ||
+                dia.lanche_interno > 0 || dia.lanche_funcionario > 0 || dia.jantar_interno > 0 || dia.jantar_funcionario > 0
+            );
+            
+            if (!temDados) {
+                showNotification('warning', 'Tabela vazia', 'Por favor, preencha pelo menos um valor na tabela.');
+                return;
+            }
+            
+            console.log('Dados coletados da tabela:', dadosTabela);
+            
+            // Preparar dados para enviar à API
+            const dadosParaApi = {
+                lote_id: loteId,
+                mes: parseInt(mes),
+                ano: parseInt(ano),
+                unidade: unidade,
+                dados_tabela: dadosTabela
+            };
+            
+            console.log('Enviando dados para API de entrada manual:', dadosParaApi);
+            
+            // Chamar API para salvar dados
+            fetch('/api/entrada-manual', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(dadosParaApi)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Erro no servidor');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Mostrar notificação de sucesso
+                    const stats = data.estatisticas || {};
+                    const diasSalvos = stats.registros_processados || 0;
+                    const totalRefeicoes = stats.total_refeicoes || 0;
+                    
+                    // Verificar se houve filtragem
+                    const mesNumero = parseInt(mes);
+                    const anoNumero = parseInt(ano);
+                    const diasNoMes = new Date(anoNumero, mesNumero, 0).getDate();
+                    
+                    let mensagem;
+                    if (diasSalvos < diasNoMes) {
+                        mensagem = `${diasSalvos} de ${diasNoMes} dias foram salvos para ${unidade} em ${mes}/${ano} (filtrados por período de contrato). Total de refeições: ${totalRefeicoes}.`;
+                    } else {
+                        mensagem = `${diasSalvos} registros salvos para ${unidade} em ${mes}/${ano}. Total de refeições: ${totalRefeicoes}.`;
+                    }
+                    
+                    showNotification('success', 'Dados salvos com sucesso!', mensagem);
+                    
+                    // Fechar seção e limpar formulário
+                    document.getElementById('secao-manual').style.display = 'none';
+                    document.getElementById('select-unidade-manual').value = '';
+                    gerarTabelaManual(); // Regenerar tabela vazia
+                    
+                    // Atualizar dados na tela (se aplicável)
+                    
+                    // Recarregar a página com filtros aplicados para a unidade e período recém-adicionados
+                    setTimeout(() => {
+                        window.location.href = `?unidade=${encodeURIComponent(unidade)}&mes=${mes}&ano=${ano}`;
+                    }, 2000);
+                    
+                } else {
+                    // Erro retornado pela API
+                    showNotification('error', 'Erro ao salvar', data.error || 'Erro desconhecido na API.');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro ao salvar entrada manual:', error);
+                
+                // Mostrar notificação de erro
+                if (error.message.includes('Lote ID') || error.message.includes('obrigatórios')) {
+                    showNotification('error', 'Dados inválidos', error.message);
+                } else if (error.message.includes('não confere')) {
+                    showNotification('error', 'Inconsistência de dados', error.message);
+                } else if (error.message.includes('inválidos encontrados')) {
+                    showNotification('error', 'Valores inválidos', error.message);
+                } else {
+                    showNotification('error', 'Erro de conexão', 'Erro de conexão com o servidor. Verifique sua conexão e tente novamente.');
+                }
+            });
+        });
+
+        // Função para coletar dados da tabela manual
+        function coletarDadosTabela() {
+            const inputs = document.querySelectorAll('#tabela-entrada-manual input');
+            const dados = [];
+            const diasNoMes = new Date(parseInt(document.getElementById('ano-manual').value), parseInt(document.getElementById('mes-manual').value), 0).getDate();
+            
+            for (let dia = 1; dia <= diasNoMes; dia++) {
+                const cafeInterno = parseInt(document.querySelector(`input[data-col="cafe-int"][data-dia="${dia}"]`).value) || 0;
+                const cafeFuncionario = parseInt(document.querySelector(`input[data-col="cafe-func"][data-dia="${dia}"]`).value) || 0;
+                const almocoInterno = parseInt(document.querySelector(`input[data-col="almoco-int"][data-dia="${dia}"]`).value) || 0;
+                const almocoFuncionario = parseInt(document.querySelector(`input[data-col="almoco-func"][data-dia="${dia}"]`).value) || 0;
+                const lancheInterno = parseInt(document.querySelector(`input[data-col="lanche-int"][data-dia="${dia}"]`).value) || 0;
+                const lancheFuncionario = parseInt(document.querySelector(`input[data-col="lanche-func"][data-dia="${dia}"]`).value) || 0;
+                const jantarInterno = parseInt(document.querySelector(`input[data-col="jantar-int"][data-dia="${dia}"]`).value) || 0;
+                const jantarFuncionario = parseInt(document.querySelector(`input[data-col="jantar-func"][data-dia="${dia}"]`).value) || 0;
+                
+                dados.push({
+                    dia: dia,
+                    cafe_interno: cafeInterno,
+                    cafe_funcionario: cafeFuncionario,
+                    almoco_interno: almocoInterno,
+                    almoco_funcionario: almocoFuncionario,
+                    lanche_interno: lancheInterno,
+                    lanche_funcionario: lancheFuncionario,
+                    jantar_interno: jantarInterno,
+                    jantar_funcionario: jantarFuncionario
+                });
+            }
+            
+            return dados;
+        }
+
+        // Função para mostrar confirmação de exclusão
+        function mostrarConfirmacaoExclusao(unidade, mes, ano, dadosExclusao) {
+            const modal = document.getElementById('modal-confirmacao-exclusao');
+            const mensagem = document.getElementById('mensagem-confirmacao');
+            
+            // Definir mensagem personalizada
+            mensagem.textContent = `Tem certeza que deseja excluir TODOS os dados de ${unidade} para ${mes}/${ano}?`;
+            
+            // Mostrar modal
+            modal.style.display = 'block';
+            
+            // Definir ação do botão de confirmação
+            document.getElementById('btn-confirmar-confirmacao').onclick = function() {
+                modal.style.display = 'none';
+                executarExclusao(dadosExclusao, unidade, mes, ano);
+            };
+        }
+        
+        // Função para executar a exclusão (código movido do evento original)
+        function executarExclusao(dadosExclusao, unidade, mes, ano) {
+            console.log('Excluindo dados:', dadosExclusao);
+            
+            // Chamar API para excluir dados
+            fetch('/api/excluir-dados', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(dadosExclusao)
+            })
+            .then(response => {
+                // Sempre tentar fazer parse do JSON, mesmo para erros
+                return response.json().then(data => {
+                    return { data: data, status: response.status, ok: response.ok };
+                });
+            })
+            .then(result => {
+                console.log('🔍 Debug - Resposta da API de exclusão:', result);
+                const { data, status, ok } = result;
+                
+                if (ok && data.success) {
+                    showNotification('success', 'Registro excluído', `Os dados de ${unidade} para ${mes}/${ano} foram excluídos com sucesso.`);
+                    
+                    // Fechar popup de exclusão
+                    document.getElementById('secao-exclusao').style.display = 'none';
+                    
+                    // Limpar formulário
+                    document.getElementById('select-unidade-exclusao').value = '';
+                    document.getElementById('mes-exclusao').value = '';
+                    document.getElementById('ano-exclusao').value = '2025';
+                    
+                    // Recarregar dados da tabela
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else if (status === 404 || (data.error && (data.error.includes('não encontrado') || data.error.includes('Registro não encontrado')))) {
+                    showNotification('warning', 'Registro não existente', `Não foram encontrados dados de ${unidade} para ${mes}/${ano}.`);
+                } else {
+                    showNotification('error', 'Erro na exclusão', data.error || 'Erro desconhecido ao excluir os dados.');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Erro ao excluir dados:', error);
+                showNotification('error', 'Erro de conexão', 'Erro de conexão com o servidor. Verifique sua conexão e tente novamente.');
+            });
+        }
+
+        // Modal da legenda
+        document.getElementById('btn-legenda').addEventListener('click', function() {
+            document.getElementById('modal-legenda').style.display = 'block';
+        });
+
+        document.getElementById('btn-fechar-legenda').addEventListener('click', function() {
+            document.getElementById('modal-legenda').style.display = 'none';
+        });
+
+        // Modal de confirmação de exclusão
+        document.getElementById('btn-cancelar-confirmacao').addEventListener('click', function() {
+            document.getElementById('modal-confirmacao-exclusao').style.display = 'none';
+        });
+
+        // Fechar modais clicando fora
+        document.getElementById('modal-legenda').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('modal-confirmacao-exclusao').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.style.display = 'none';
+            }
+        });
+
+
+
+        // Exportar tabela
+        document.getElementById('btn-exportar-tabela').addEventListener('click', function() {
+            // Obter filtros ativos
+            const dataInicio = filtrosAtivos.dataInicio;
+            const dataFim = filtrosAtivos.dataFim;
+            const unidades = filtrosAtivos.unidadesSelecionadas;
+
+            // Montar nome do arquivo
+            let nomeArquivo = 'tabela_lote_' + loteId;
+            if (dataInicio && dataFim) {
+                nomeArquivo += `_${dataInicio}_a_${dataFim}`;
+            }
+            nomeArquivo += '.xlsx';
+
+            // Montar URL da exportação
+            const params = new URLSearchParams();
+            if (dataInicio) params.append('data_inicio', dataInicio);
+            if (dataFim) params.append('data_fim', dataFim);
+            if (unidades && unidades.length > 0) params.append('unidades', unidades.join(','));
+            params.append('lote_id', loteId);
+
+            // Chamar rota Flask para exportar Excel
+            fetch(`/exportar-tabela?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Erro ao gerar arquivo');
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = nomeArquivo;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    showNotification('success', 'Download concluído', 'Tabela exportada com sucesso!');
+                })
+                .catch(() => {
+                    showNotification('error', 'Erro ao baixar tabela', 'Não foi possível gerar o arquivo Excel.');
+                });
+        });
+        
+
+
+        // Logout
+        document.getElementById('logoutLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            if (confirm('Tem certeza que deseja sair do sistema?')) {
+                showNotification('success', 'Logout realizado', 'Até logo!', false);
+                localStorage.removeItem('sgmrp_usuario');
+                localStorage.removeItem('sgmrp_remember');
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 1500);
+            }
+        });
+
+        // Controle do filtro de período
+        function initPeriodoFilter(skipAutoInit = false) {
+            const periodoDisplay = document.getElementById('periodo-display');
+            const calendarioPopup = document.getElementById('calendario-popup');
+            const calendarioOverlay = document.getElementById('calendario-overlay');
+            const dataInicio = document.getElementById('data-inicio');
+            const dataFim = document.getElementById('data-fim');
+            const btnAplicar = document.getElementById('btn-aplicar-periodo');
+            const btnCancelar = document.getElementById('btn-cancelar-periodo');
+            
+            // Abrir calendário
+            periodoDisplay.addEventListener('click', function() {
+                calendarioPopup.style.display = 'block';
+                calendarioOverlay.style.display = 'block';
+                periodoDisplay.classList.add('active');
+                atualizarInfoDias();
+            });
+            
+            // Fechar calendário
+            function fecharCalendario() {
+                calendarioPopup.style.display = 'none';
+                calendarioOverlay.style.display = 'none';
+                periodoDisplay.classList.remove('active');
+            }
+            
+            calendarioOverlay.addEventListener('click', fecharCalendario);
+            btnCancelar.addEventListener('click', fecharCalendario);
+            
+            // Aplicar período
+            btnAplicar.addEventListener('click', function() {
+                // Atualizar filtros ativos
+                filtrosAtivos.dataInicio = dataInicio.value;
+                filtrosAtivos.dataFim = dataFim.value;
+                
+                atualizarDisplayPeriodo();
+                atualizarTituloPeriodo();
+                fecharCalendario();
+                
+                // Aplicar filtros e atualizar tabela
+                console.log('Aplicando filtro de período:', dataInicio.value, 'até', dataFim.value);
+                console.log('Dados originais:', dadosOriginais.length, 'registros');
+                aplicarFiltros();
+                console.log('Dados filtrados:', dadosRefeicoes.length, 'registros');
+            });
+            
+            // Atualizar info de dias quando as datas mudarem
+            dataInicio.addEventListener('change', atualizarInfoDias);
+            dataFim.addEventListener('change', atualizarInfoDias);
+            
+            // Seletor de mês/ano
+            const mesPeriodo = document.getElementById('mes-periodo');
+            const anoPeriodo = document.getElementById('ano-periodo');
+            
+            // Definir mês anterior como padrão
+            const hoje = new Date();
+            let mesAnterior = hoje.getMonth(); // 0-11 (outubro = 9)
+            let anoAnterior = hoje.getFullYear();
+            
+            if (mesAnterior === 0) {
+                mesAnterior = 12;
+                anoAnterior--;
+            }
+            
+            mesPeriodo.value = mesAnterior.toString();
+            anoPeriodo.value = anoAnterior.toString();
+            
+            // Função para atualizar as datas quando mês/ano mudarem
+            function atualizarDatasPorMesAno() {
+                const mes = parseInt(mesPeriodo.value);
+                const ano = parseInt(anoPeriodo.value);
+                
+                // Calcular primeiro e último dia do mês
+                const primeiroDia = new Date(ano, mes - 1, 1);
+                const ultimoDia = new Date(ano, mes, 0);
+                
+                // Definir valores nos inputs
+                dataInicio.value = primeiroDia.toISOString().split('T')[0];
+                dataFim.value = ultimoDia.toISOString().split('T')[0];
+                
+                // Atualizar display
+                atualizarInfoDias();
+            }
+            
+            // Event listeners para atualização automática
+            mesPeriodo.addEventListener('change', atualizarDatasPorMesAno);
+            anoPeriodo.addEventListener('change', atualizarDatasPorMesAno);
+            
+            // Aplicar o mês anterior inicial APENAS se não houver parâmetros na URL
+            if (!skipAutoInit) {
+                atualizarDatasPorMesAno();
+            }
+        }
+        
+        function atualizarInfoDias() {
+            const dataInicioValue = document.getElementById('data-inicio').value;
+            const dataFimValue = document.getElementById('data-fim').value;
+            const diasInfo = document.getElementById('dias-periodo');
+            
+            if (dataInicioValue && dataFimValue) {
+                // Converter strings ISO para Date de forma consistente
+                const [anoInicio, mesInicio, diaInicio] = dataInicioValue.split('-');
+                const [anoFim, mesFim, diaFim] = dataFimValue.split('-');
+                const dataInicio = new Date(parseInt(anoInicio), parseInt(mesInicio) - 1, parseInt(diaInicio));
+                const dataFim = new Date(parseInt(anoFim), parseInt(mesFim) - 1, parseInt(diaFim));
+                
+                if (dataInicio <= dataFim) {
+                    const diffTime = Math.abs(dataFim - dataInicio);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    
+                    // Contar quantos registros estão no período - converter data brasileira
+                    const registrosNoPeriodo = dadosOriginais.filter(registro => {
+                        const partesData = registro.data.split('/');
+                        const dataRegistro = new Date(partesData[2], partesData[1] - 1, partesData[0]);
+                        return dataRegistro >= dataInicio && dataRegistro <= dataFim;
+                    }).length;
+                    
+                    diasInfo.textContent = `${diffDays} dias selecionados (${registrosNoPeriodo} registros)`;
+                } else {
+                    diasInfo.textContent = 'Data de início deve ser anterior à data de fim';
+                }
+            } else {
+                diasInfo.textContent = 'Selecione as datas de início e fim';
+            }
+        }
+        
+        function atualizarDisplayPeriodo() {
+            const dataInicio = document.getElementById('data-inicio').value;
+            const dataFim = document.getElementById('data-fim').value;
+            const periodoText = document.getElementById('periodo-text');
+            
+            console.log('🔍 DEBUG atualizarDisplayPeriodo:', 'dataInicio=', dataInicio, 'dataFim=', dataFim);
+            
+            if (dataInicio && dataFim) {
+                // Usar split para evitar problemas de timezone
+                const [anoInicio, mesInicio, diaInicio] = dataInicio.split('-');
+                const [anoFim, mesFim, diaFim] = dataFim.split('-');
+                
+                console.log('🔍 DEBUG Split dates:', 
+                    'inicio:', diaInicio, '/', mesInicio, '/', anoInicio,
+                    'fim:', diaFim, '/', mesFim, '/', anoFim
+                );
+                
+                const inicioFormatado = `${diaInicio}/${mesInicio}/${anoInicio}`;
+                const fimFormatado = `${diaFim}/${mesFim}/${anoFim}`;
+                
+                console.log('🔍 DEBUG Formatted:', 'inicio=', inicioFormatado, 'fim=', fimFormatado);
+                
+                periodoText.textContent = `${inicioFormatado} - ${fimFormatado}`;
+            }
+        }
+        
+        function atualizarTituloPeriodo() {
+            const dataInicio = document.getElementById('data-inicio').value;
+            const dataFim = document.getElementById('data-fim').value;
+            const titulo = document.querySelector('.card-header h3');
+            
+            if (dataInicio && dataFim && titulo) {
+                // Usar split para evitar problemas de timezone
+                const [anoInicio, mesInicio, diaInicio] = dataInicio.split('-');
+                const [anoFim, mesFim, diaFim] = dataFim.split('-');
+                
+                const inicioFormatado = `${diaInicio}/${mesInicio}/${anoInicio}`;
+                const fimFormatado = `${diaFim}/${mesFim}/${anoFim}`;
+                
+                titulo.textContent = `Mapas de Refeições - ${inicioFormatado} a ${fimFormatado}`;
+            }
+        }
+
+        // Controle do filtro de unidades multi-select
+        function initUnidadesFilter() {
+            const unidadesDisplay = document.getElementById('unidades-display');
+            const unidadesPopup = document.getElementById('unidades-popup');
+            const unidadesOverlay = document.getElementById('unidades-overlay');
+            const btnAplicar = document.getElementById('btn-aplicar-unidades');
+            const btnCancelar = document.getElementById('btn-cancelar-unidades');
+            const btnSelecionarTodas = document.getElementById('btn-selecionar-todas');
+            const btnLimparTodas = document.getElementById('btn-limpar-todas');
+            
+            let unidadesSelecionadasBackup = [];
+            
+            // Verificar se há unidades pré-selecionadas vindas da URL
+            const unidadesPreSelecionadas = filtrosAtivos.unidadesSelecionadas;
+            
+            // Inicializar checkboxes
+            const checkboxes = document.querySelectorAll('.unidade-checkbox');
+            if (unidadesPreSelecionadas && unidadesPreSelecionadas.length > 0) {
+                // Se veio da URL, selecionar apenas as especificadas
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = unidadesPreSelecionadas.includes(checkbox.value);
+                });
+            } else {
+                // Caso contrário, selecionar todas
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                // Definir como null (todas selecionadas = sem filtro)
+                filtrosAtivos.unidadesSelecionadas = null;
+            }
+            
+            atualizarDisplayUnidades();
+            
+            // Abrir popup de unidades
+            unidadesDisplay.addEventListener('click', function() {
+                // Fazer backup das seleções atuais
+                unidadesSelecionadasBackup = getUnidadesSelecionadas();
+                
+                unidadesPopup.style.display = 'block';
+                unidadesOverlay.style.display = 'block';
+                unidadesDisplay.classList.add('active');
+                atualizarCountUnidades();
+            });
+            
+            // Fechar popup de unidades
+            function fecharUnidadesPopup() {
+                unidadesPopup.style.display = 'none';
+                unidadesOverlay.style.display = 'none';
+                unidadesDisplay.classList.remove('active');
+            }
+            
+            unidadesOverlay.addEventListener('click', function() {
+                // Restaurar seleções anteriores ao cancelar
+                restaurarSelecoes(unidadesSelecionadasBackup);
+                fecharUnidadesPopup();
+            });
+            
+            btnCancelar.addEventListener('click', function() {
+                // Restaurar seleções anteriores ao cancelar
+                restaurarSelecoes(unidadesSelecionadasBackup);
+                fecharUnidadesPopup();
+            });
+            
+            // Aplicar seleção de unidades
+            btnAplicar.addEventListener('click', function() {
+                const unidadesSelecionadas = getUnidadesSelecionadas();
+                const totalCheckboxes = document.querySelectorAll('.unidade-checkbox').length;
+                
+                // Se todas as unidades estão selecionadas, limpar filtro (mostrar todas) -> usar null como sentinel
+                if (unidadesSelecionadas.length === totalCheckboxes) {
+                    filtrosAtivos.unidadesSelecionadas = null;
+                } else {
+                    // Pode ser array com 0 elementos (nenhuma selecionada) ou >0 (algumas selecionadas)
+                    filtrosAtivos.unidadesSelecionadas = unidadesSelecionadas;
+                }
+                
+                atualizarDisplayUnidades();
+                fecharUnidadesPopup();
+                
+                // Aplicar filtros e atualizar tabela
+                console.log('Aplicando filtro de unidades:', filtrosAtivos.unidadesSelecionadas);
+                console.log('Dados originais:', dadosOriginais.length, 'registros');
+                aplicarFiltros();
+                console.log('Dados filtrados:', dadosRefeicoes.length, 'registros');
+            });
+            
+            // Selecionar todas as unidades
+            btnSelecionarTodas.addEventListener('click', function() {
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+                atualizarCountUnidades();
+            });
+            
+            // Limpar todas as seleções
+            btnLimparTodas.addEventListener('click', function() {
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+                atualizarCountUnidades();
+            });
+            
+            // Atualizar contador quando checkboxes mudarem
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', atualizarCountUnidades);
+            });
+            
+            // Permitir clicar no item todo para marcar/desmarcar
+            document.querySelectorAll('.unidade-item').forEach(item => {
+                item.addEventListener('click', function(e) {
+                    if (e.target.type !== 'checkbox' && e.target.tagName !== 'LABEL') {
+                        const checkbox = this.querySelector('.unidade-checkbox');
+                        checkbox.checked = !checkbox.checked;
+                        atualizarCountUnidades();
+                    }
+                });
+            });
+        }
+        
+        function getUnidadesSelecionadas() {
+            const checkboxes = document.querySelectorAll('.unidade-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+        
+        function restaurarSelecoes(unidades) {
+            const checkboxes = document.querySelectorAll('.unidade-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = unidades.includes(checkbox.value);
+            });
+            atualizarCountUnidades();
+        }
+        
+        function atualizarCountUnidades() {
+            const selecionadas = getUnidadesSelecionadas();
+            const countElement = document.getElementById('unidades-selecionadas-count');
+            const total = document.querySelectorAll('.unidade-checkbox').length;
+            
+            if (selecionadas.length === 0) {
+                countElement.textContent = 'Nenhuma unidade selecionada';
+            } else if (selecionadas.length === total) {
+                countElement.textContent = 'Todas as unidades selecionadas';
+            } else if (selecionadas.length === 1) {
+                countElement.textContent = '1 unidade selecionada';
+            } else {
+                countElement.textContent = `${selecionadas.length} unidades selecionadas`;
+            }
+        }
+        
+        function atualizarDisplayUnidades() {
+            const selecionadas = getUnidadesSelecionadas();
+            const unidadesText = document.getElementById('unidades-text');
+            const total = document.querySelectorAll('.unidade-checkbox').length;
+            
+            if (selecionadas.length === 0) {
+                unidadesText.textContent = 'Nenhuma unidade';
+            } else if (selecionadas.length === total) {
+                unidadesText.textContent = 'Todas as unidades';
+            } else if (selecionadas.length === 1) {
+                // Mostrar o nome da unidade selecionada
+                const checkbox = document.querySelector(`input[value="${selecionadas[0]}"]`);
+                const label = document.querySelector(`label[for="${checkbox.id}"]`);
+                unidadesText.textContent = label.textContent;
+            } else {
+                unidadesText.textContent = `${selecionadas.length} unidades`;
+            }
+        }
+
+        // Placeholder para links não implementados
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('a[href="#relatorios"]')) {
+                e.preventDefault();
+                showNotification('warning', 'Módulo em desenvolvimento', 'O módulo de Relatórios será implementado na próxima versão do SGMRP.');
+            }
+            
+            if (e.target.closest('a[href="#configuracoes"]')) {
+                e.preventDefault();
+                showNotification('warning', 'Módulo em desenvolvimento', 'O módulo de Configurações será implementado na próxima versão do SGMRP.');
+            }
+        });
+    </script>
+    <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-analytics.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+        apiKey: "AIzaSyAp2Xg1g5MwxuD3m6QlroJVmi6V6SEYeGo",
+        authDomain: "sgmrp-sfa-seap.firebaseapp.com",
+        projectId: "sgmrp-sfa-seap",
+        storageBucket: "sgmrp-sfa-seap.firebasestorage.app",
+        messagingSenderId: "890046403125",
+        appId: "1:890046403125:web:36c3cb60d4e6960f1a977c",
+        measurementId: "G-Z0KXSCHS4Q"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    </script>
+</body>
+</html>
