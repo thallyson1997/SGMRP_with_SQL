@@ -461,7 +461,7 @@
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem;">
                             <div style="text-align: center;">
                                 <div style="font-size: 1.5rem;">🍽️</div>
-                                <div style="font-size: 0.875rem; opacity: 0.9;" class="refeicoes-count" data-lote-id="{{ lote.id }}">{{ "{:,}".format(lote.refeicoes | default(15000 + (lote.id * 2000), true)).replace(',', '.') }}</div>
+                                <div style="font-size: 0.875rem; opacity: 0.9;" class="refeicoes-count" data-lote-id="{{ lote.id }}">{{ "{:,}".format(lote.total_refeicoes | default(0, true)).replace(',', '.') }}</div>
                                 <div style="font-size: 0.75rem; opacity: 0.8;">Refeições</div>
                             </div>
                             <div style="text-align: center;">

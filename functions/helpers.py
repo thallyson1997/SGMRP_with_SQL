@@ -158,6 +158,7 @@ def carregar_lotes_para_dashboard():
 			'empresa': l.get('empresa') or '',
 			'contrato': l.get('numero_contrato') or l.get('contrato') or '',
 			'data_inicio': data_inicio,
+			'data_fim': l.get('data_fim') or '',
 			'valor_contratual': valor_contratual,
 			'ativo': l.get('ativo', True),
 			'unidades': unidades_final,

@@ -210,6 +210,19 @@ def api_editar_lote(lote_id):
     except Exception as e:
         return jsonify({'success': False, 'error': 'Erro interno'}), 500
 
+@app.route('/api/editar-lote/<int:lote_id>', methods=['DELETE'])
+def api_excluir_lote(lote_id):
+    # Endpoint para excluir um lote existente via API
+    try:
+        from functions.lotes import deletar_lote
+        success = deletar_lote(lote_id, db)
+        if success:
+            return jsonify({'success': True, 'id': lote_id}), 200
+        else:
+            return jsonify({'success': False, 'error': f'Lote {lote_id} não encontrado'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Erro interno: {e}'}), 500
+
 @app.route('/dashboard')
 def dashboard():
     #Página do dashboard
@@ -217,8 +230,30 @@ def dashboard():
     usuario_nome = session.get('usuario_nome', '')
     dashboard_data = carregar_lotes_para_dashboard()
     lotes = dashboard_data.get('lotes', [])
-    mapas_dados = dashboard_data.get('mapas_dados', [])
-
+    from functions.mapas import carregar_mapas_db
+    mapas_dados = carregar_mapas_db()
+    # Agrupar mapas por lote_id
+    mapas_por_lote = {}
+    for mapa in mapas_dados:
+        lid = str(mapa.get('lote_id'))
+        if lid not in mapas_por_lote:
+            mapas_por_lote[lid] = []
+        mapas_por_lote[lid].append(mapa)
+    # Calcular total de refeições por lote
+    campos_refeicoes = [
+        'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+        'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
+    ]
+    for lote in lotes:
+        lid = str(lote.get('id'))
+        mapas_lote = mapas_por_lote.get(lid, [])
+        total_refeicoes = 0
+        for mapa in mapas_lote:
+            for campo in campos_refeicoes:
+                vals = mapa.get(campo, [])
+                if isinstance(vals, list):
+                    total_refeicoes += sum(int(x) if x is not None else 0 for x in vals)
+        lote['total_refeicoes'] = total_refeicoes
     return render_template('dashboard.html', lotes=lotes, mapas_dados=mapas_dados,
                            mostrar_login_sucesso=mostrar_login_sucesso,
                            usuario_nome=usuario_nome)
@@ -228,11 +263,10 @@ def lotes():
     #Página de listagem de lotes
     data = carregar_lotes_para_dashboard()
     lotes = data.get('lotes', [])
-    mapas = data.get('mapas_dados', [])
-
+    from functions.mapas import carregar_mapas_db
+    mapas = carregar_mapas_db()
     calcular_metricas_lotes(lotes, mapas)
     calcular_ultima_atividade_lotes(lotes, mapas)
-
     empresas = []
     seen = set()
     for l in lotes:
@@ -262,18 +296,34 @@ def lote_detalhes(lote_id):
     if lote is None:
         abort(404)
 
-    lote['precos'] = normalizar_precos(lote.get('precos'))
+    # Converter todos os preços para float, inclusive aninhados
+    precos = lote.get('precos', {})
+    for tipo_refeicao in precos:
+        if isinstance(precos[tipo_refeicao], dict):
+            for subcampo in precos[tipo_refeicao]:
+                try:
+                    precos[tipo_refeicao][subcampo] = float(precos[tipo_refeicao][subcampo])
+                except Exception:
+                    precos[tipo_refeicao][subcampo] = 0.0
+        else:
+            try:
+                precos[tipo_refeicao] = float(precos[tipo_refeicao])
+            except Exception:
+                precos[tipo_refeicao] = 0.0
+    lote['precos'] = precos
 
-    unidades_lote = lote.get('unidades') or []
+    # Buscar nomes das unidades pelo campo unidades (lista de IDs)
+    unidades_ids = lote.get('unidades') or []
+    from functions.unidades import Unidade
+    unidades_lote = []
+    if unidades_ids:
+        for uid in unidades_ids:
+            unidade = Unidade.query.get(uid)
+            if unidade:
+                unidades_lote.append(unidade.nome)
 
-    mapas_lote = []
-    for m in (mapas_dados or []):
-        try:
-            if int(m.get('lote_id')) == int(lote.get('id')):
-                mapas_lote.append(m)
-        except Exception:
-            continue
-
+    from functions.mapas import carregar_mapas_db
+    mapas_lote = carregar_mapas_db({'lote_id': lote.get('id')})
     return render_template('lote-detalhes.html', lote=lote, unidades_lote=unidades_lote, mapas_lote=mapas_lote)
 
 @app.route('/api/adicionar-dados', methods=['POST'])

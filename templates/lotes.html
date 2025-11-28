@@ -408,9 +408,31 @@
         </div>
     </div>
 
+    <!-- Modal Excluir Lote -->
+    <div id="modal-excluir-lote" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 16px; padding: 2rem; max-width: 500px; width: 98%; box-shadow: 0 8px 32px rgba(0,0,0,0.18);">
+            <h2 style="margin-bottom: 1.5rem; color: var(--danger-color);">Excluir Lote</h2>
+            <form id="form-excluir-lote" autocomplete="off">
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="excluir-lote-selecao" class="form-label" style="font-weight: 500;">Selecione o Lote para excluir</label>
+                    <select id="excluir-lote-selecao" class="form-select" required style="width: 100%; padding: 0.5rem; border-radius: 6px; border: 1px solid var(--gray-300);">
+                        <option value="">Selecione...</option>
+                        {% for lote in lotes %}
+                            <option value="{{ lote.id }}">Lote {{ lote.id }} - {{ lote.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="margin-bottom: 1.5rem; color: var(--danger-color); font-weight: 500;">Esta ação é irreversível. Tem certeza que deseja excluir este lote?</div>
+                <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" id="btn-cancelar-excluir-lote" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" id="btn-confirmar-excluir-lote" class="btn btn-danger">Excluir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
-        // Dados dos lotes carregados do backend
-        const lotesData = {{ lotes|tojson|safe }};
+        const lotesData = JSON.parse(`{{ lotes|tojson|safe }}`);
 
         // Campo dinâmico de unidades do lote
         function adicionarCampoUnidade(nome = "") {
@@ -509,7 +531,22 @@
             document.getElementById('editar-lote-empresa').value = lote.empresa || '';
             document.getElementById('editar-lote-contrato').value = lote.numero_contrato || lote.contrato || '';
             document.getElementById('editar-lote-inicio').value = lote.data_inicio || lote.inicio_contrato || '';
-            document.getElementById('editar-lote-fim').value = lote.data_fim || lote.fim_contrato || '';
+            // Formatar data_fim para YYYY-MM-DD se necessário
+            let dataFim = lote.data_fim || lote.fim_contrato || '';
+            if (dataFim && dataFim.length > 0) {
+                // Tenta converter formatos comuns para YYYY-MM-DD
+                const match = dataFim.match(/(\d{4})[-/](\d{2})[-/](\d{2})/);
+                if (match) {
+                    dataFim = `${match[1]}-${match[2]}-${match[3]}`;
+                } else {
+                    // Tenta converter DD/MM/YYYY para YYYY-MM-DD
+                    const matchBr = dataFim.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+                    if (matchBr) {
+                        dataFim = `${matchBr[3]}-${matchBr[2]}-${matchBr[1]}`;
+                    }
+                }
+            }
+            document.getElementById('editar-lote-fim').value = dataFim;
             document.getElementById('editar-lote-valor-contratual').value = lote.valor_contratual || 0;
             
             // Status
@@ -864,6 +901,58 @@
                 modalEditarLote.addEventListener('click', function(e) {
                     if (e.target === modalEditarLote) {
                         modalEditarLote.style.display = 'none';
+                    }
+                });
+            }
+
+            // Modal Excluir Lote
+            var excluirLoteBtn = document.getElementById('excluirLote');
+            var modalExcluirLote = document.getElementById('modal-excluir-lote');
+            var btnCancelarExcluirLote = document.getElementById('btn-cancelar-excluir-lote');
+            var formExcluirLote = document.getElementById('form-excluir-lote');
+            if (excluirLoteBtn && modalExcluirLote) {
+                excluirLoteBtn.addEventListener('click', function() {
+                    document.getElementById('excluir-lote-selecao').value = '';
+                    modalExcluirLote.style.display = 'block';
+                });
+            }
+            if (btnCancelarExcluirLote && modalExcluirLote) {
+                btnCancelarExcluirLote.addEventListener('click', function() {
+                    modalExcluirLote.style.display = 'none';
+                });
+            }
+            if (modalExcluirLote) {
+                modalExcluirLote.addEventListener('click', function(e) {
+                    if (e.target === modalExcluirLote) {
+                        modalExcluirLote.style.display = 'none';
+                    }
+                });
+            }
+            if (formExcluirLote) {
+                formExcluirLote.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    const loteId = document.getElementById('excluir-lote-selecao').value;
+                    if (!loteId) {
+                        alert('Selecione um lote para excluir');
+                        return;
+                    }
+                    if (!confirm('Tem certeza que deseja excluir este lote?')) return;
+                    try {
+                        const resp = await fetch(`/api/editar-lote/${loteId}`, {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'same-origin'
+                        });
+                        const data = await resp.json();
+                        if (resp.ok && data.success) {
+                            showNotification('success', 'Lote excluído!', 'O lote foi excluído com sucesso.');
+                            modalExcluirLote.style.display = 'none';
+                            setTimeout(() => window.location.reload(), 1200);
+                        } else {
+                            showNotification('error', 'Erro ao excluir lote', data.error || 'Erro ao excluir lote.');
+                        }
+                    } catch (err) {
+                        alert('Erro de conexão com o servidor.');
                     }
                 });
             }

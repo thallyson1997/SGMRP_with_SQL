@@ -1,3 +1,31 @@
+# Função utilitária para carregar mapas do banco como lista de dicts
+def carregar_mapas_db(filtros=None):
+	from .models import Mapa
+	query = Mapa.query
+	if filtros:
+		for k, v in filtros.items():
+			query = query.filter(getattr(Mapa, k) == v)
+	mapas_db = query.all()
+	mapas = []
+	for m in mapas_db:
+		mapa_dict = {c.name: getattr(m, c.name) for c in m.__table__.columns}
+		for field in [
+			'cafe_interno_siisp', 'cafe_funcionario_siisp',
+			'almoco_interno_siisp', 'almoco_funcionario_siisp',
+			'lanche_interno_siisp', 'lanche_funcionario_siisp',
+			'jantar_interno_siisp', 'jantar_funcionario_siisp',
+			'dados_siisp', 'cafe_interno', 'cafe_funcionario',
+			'almoco_interno', 'almoco_funcionario',
+			'lanche_interno', 'lanche_funcionario',
+			'jantar_interno', 'jantar_funcionario', 'datas'
+		]:
+			if field in mapa_dict and isinstance(mapa_dict[field], str):
+				try:
+					mapa_dict[field] = json.loads(mapa_dict[field])
+				except Exception:
+					pass
+		mapas.append(mapa_dict)
+	return mapas
 import json
 import re
 import os
@@ -340,10 +368,9 @@ def _validate_map_day_lengths(entry):
 
 
 # ----- File Path Helpers -----
-def _get_mapas_filepath(mes, ano):
-	base_dir = os.path.dirname(os.path.dirname(__file__))
-	filename = f'mapas_{ano}_{mes:02d}.json'
-	return os.path.join(base_dir, 'dados', filename)
+
+# Funções CRUD usando banco de dados
+from .models import db, Mapa
 
 
 # ----- Data Loading/Saving -----
@@ -375,35 +402,34 @@ def _save_mapas_data(data):
 		return False
 
 
+
 def _load_mapas_partitioned(mes, ano):
-	filepath = _get_mapas_filepath(mes, ano)
-	if not os.path.isfile(filepath):
-		return None
-	try:
-		with open(filepath, 'r', encoding='utf-8') as f:
-			data = json.load(f)
-			if isinstance(data, dict) and 'mapas' in data:
-				return data['mapas']
-			elif isinstance(data, list):
-				return data
-			return None
-	except Exception as e:
-		print(f"❌ Erro ao ler {filepath}: {e}")
-		return None
+	# Busca mapas por mês/ano
+	return Mapa.query.filter_by(mes=mes, ano=ano).all()
 
 
+
+# Não é mais necessário salvar em arquivo, mapas são salvos no banco
 def _save_mapas_partitioned(mapas_list, mes, ano):
-	filepath = _get_mapas_filepath(mes, ano)
+	# Salva lista de mapas no banco
 	try:
-		os.makedirs(os.path.dirname(filepath), exist_ok=True)
-		tmp_path = filepath + '.tmp'
-		with open(tmp_path, 'w', encoding='utf-8') as f:
-			json.dump(mapas_list, f, ensure_ascii=False, indent=2)
-		os.replace(tmp_path, filepath)
-		print(f"✅ Mapas salvos em: {filepath} ({len(mapas_list)} registros)")
+		for mapa_data in mapas_list:
+			mapa = Mapa.query.filter_by(mes=mes, ano=ano, unidade=mapa_data.get('unidade'), lote_id=mapa_data.get('lote_id')).first()
+			if mapa:
+				# Atualiza
+				for k, v in mapa_data.items():
+					if hasattr(mapa, k):
+						setattr(mapa, k, json.dumps(v) if isinstance(v, list) else v)
+				mapa.atualizado_em = datetime.now().isoformat()
+			else:
+				# Cria novo
+				novo_mapa = Mapa(**{k: json.dumps(v) if isinstance(v, list) else v for k, v in mapa_data.items() if hasattr(Mapa, k)})
+				db.session.add(novo_mapa)
+		db.session.commit()
 		return True
 	except Exception as e:
-		print(f"❌ Erro ao salvar {filepath}: {e}")
+		print(f"❌ Erro ao salvar mapas: {e}")
+		db.session.rollback()
 		return False
 
 
@@ -428,27 +454,8 @@ def _load_mapas_by_period(mes_inicio, ano_inicio, mes_fim, ano_fim):
 
 
 def _load_all_mapas_partitioned():
-	base_dir = os.path.dirname(os.path.dirname(__file__))
-	dados_dir = os.path.join(base_dir, 'dados')
-	
-	pattern = os.path.join(dados_dir, 'mapas_????_??.json')
-	
-	arquivos = glob.glob(pattern)
-	mapas_agregados = []
-	
-	for filepath in sorted(arquivos):
-		try:
-			with open(filepath, 'r', encoding='utf-8') as f:
-				data = json.load(f)
-				if isinstance(data, dict) and 'mapas' in data:
-					mapas_agregados.extend(data['mapas'])
-				elif isinstance(data, list):
-					mapas_agregados.extend(data)
-		except Exception as e:
-			print(f"❌ Erro ao carregar {filepath}: {e}")
-			continue
-	
-	return mapas_agregados
+	# Retorna todos os mapas do banco
+	return Mapa.query.all()
 def _detect_mes_ano_from_entry(entry):
 	if not isinstance(entry, dict):
 		return (None, None)
@@ -479,262 +486,28 @@ def _detect_mes_ano_from_entry(entry):
 
 
 # ----- Main Map Operations -----
+
 def salvar_mapas_raw(payload):
 	try:
-		entries = []
-		if isinstance(payload, list):
-			entries = payload
-		else:
-			entries = [payload or {}]
-		
-		periodos_afetados = set()
-		for entry in entries:
-			mes, ano = _detect_mes_ano_from_entry(entry)
-			if mes and ano:
-				periodos_afetados.add((mes, ano))
-		
-		if not periodos_afetados:
-			return {'success': False, 'error': 'Não foi possível detectar mês/ano dos dados'}
-		
-		mapas_list = []
-		for (mes, ano) in periodos_afetados:
-			mapas_periodo = _load_mapas_partitioned(mes, ano)
-			if mapas_periodo:
-				mapas_list.extend(mapas_periodo)
-		
-		legacy_data = _load_mapas_data()
-		if legacy_data:
-			if isinstance(legacy_data, dict) and isinstance(legacy_data.get('mapas'), list):
-				mapas_list.extend(legacy_data.get('mapas'))
-			elif isinstance(legacy_data, list):
-				mapas_list.extend(legacy_data)
-
-		existing_ids = {int(m.get('id')) for m in mapas_list if isinstance(m, dict) and isinstance(m.get('id'), int)}
-		next_id = (max(existing_ids) + 1) if existing_ids else 0
-
+		entries = payload if isinstance(payload, list) else [payload or {}]
 		saved_ids = []
 		saved_records = []
+		# Lista de todos os campos do modelo Mapa
+		mapa_fields = [
+			'lote_id', 'mes', 'ano', 'unidade', 'linhas', 'colunas_count',
+			'dados_siisp', 'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+			'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario',
+			'datas', 'criado_em', 'atualizado_em',
+			'cafe_interno_siisp', 'cafe_funcionario_siisp', 'almoco_interno_siisp', 'almoco_funcionario_siisp',
+			'lanche_interno_siisp', 'lanche_funcionario_siisp', 'jantar_interno_siisp', 'jantar_funcionario_siisp'
+		]
 		for entry in entries:
-			if not isinstance(entry, dict):
-				entry = {'data': entry}
-			provided = entry.get('id')
-
-			def _extract_key(obj):
-				lote_keys = ('lote_id', 'loteId', 'lote', 'loteId')
-				unidade_keys = ('unidade', 'unidade_id', 'unidadeId', 'unidade_nome', 'unidadeNome')
-				mes_keys = ('mes', 'month', 'mes_num', 'mesNumero', 'month_num')
-				ano_keys = ('ano', 'year')
-				try:
-					lote_val = None
-					for k in lote_keys:
-						if k in obj:
-							lote_val = obj.get(k)
-							break
-					if lote_val is None:
-						return None
-					unidade_val = None
-					for k in unidade_keys:
-						if k in obj:
-							unidade_val = obj.get(k)
-							break
-					if unidade_val is None:
-						return None
-					mes_val = None
-					for k in mes_keys:
-						if k in obj:
-							mes_val = obj.get(k)
-							break
-					if mes_val is None:
-						return None
-					ano_val = None
-					for k in ano_keys:
-						if k in obj:
-							ano_val = obj.get(k)
-							break
-					if ano_val is None:
-						return None
-					try:
-						lote_n = int(lote_val)
-					except Exception:
-						try:
-							lote_n = int(str(lote_val).strip())
-						except Exception:
-							return None
-					try:
-						mes_n = int(mes_val)
-					except Exception:
-						try:
-							mes_n = int(str(mes_val).strip())
-						except Exception:
-							return None
-					try:
-						ano_n = int(ano_val)
-					except Exception:
-						try:
-							ano_n = int(str(ano_val).strip())
-						except Exception:
-							return None
-					unidade_s = str(unidade_val).strip().lower()
-					return (lote_n, unidade_s, mes_n, ano_n)
-				except Exception:
-					return None
-
-			entry_key = _extract_key(entry)
-			matched_index = None
-			matched_record = None
-			if entry_key is not None:
-				for idx, existing_map in enumerate(mapas_list):
-					try:
-						existing_key = _extract_key(existing_map) if isinstance(existing_map, dict) else None
-						if existing_key is not None and existing_key == entry_key:
-							matched_index = idx
-							matched_record = existing_map
-							break
-					except Exception:
-						continue
-
-			if matched_index is not None:
-				assigned = int(matched_record.get('id')) if isinstance(matched_record.get('id'), int) else matched_record.get('id')
-				rec = dict(entry)
-				possible_text_keys = ('texto', 'conteudo', 'dados', 'texto_raw', 'texto_mapas', 'mapa_texto')
-				text_val = None
-				used_text_key = None
-				for k in possible_text_keys:
-					if k in rec and rec.get(k) is not None:
-						text_val = rec.get(k)
-						used_text_key = k
-						break
-				if text_val is not None:
-					parsed = parse_texto_tabular(text_val)
-					if parsed.get('ok'):
-						cols = parsed.get('colunas') or {}
-						col_count = int(parsed.get('colunas_count') or 0)
-						if col_count < 9:
-							return {'success': False, 'error': f'Texto tabular contém colunas insuficientes: {col_count} (<9)'}
-						for ck, cv in cols.items():
-							rec[ck] = cv
-						rec['linhas'] = parsed.get('linhas')
-						rec['colunas_count'] = parsed.get('colunas_count')
-						col_count = int(parsed.get('colunas_count') or 0)
-						if col_count == 1:
-							if 'coluna_0' in rec:
-								rec['dados_siisp'] = rec.pop('coluna_0')
-							else:
-								rec['dados_siisp'] = []
-						else:
-							col_rename_map = {
-								'coluna_1': 'cafe_interno',
-								'coluna_2': 'cafe_funcionario',
-								'coluna_3': 'almoco_interno',
-								'coluna_4': 'almoco_funcionario',
-								'coluna_5': 'lanche_interno',
-								'coluna_6': 'lanche_funcionario',
-								'coluna_7': 'jantar_interno',
-								'coluna_8': 'jantar_funcionario'
-							}
-							for oldk, newk in col_rename_map.items():
-								if oldk in rec:
-									rec[newk] = rec.pop(oldk)
-							if 'coluna_0' in rec:
-								try:
-									datas = _normalizar_datas_coluna(rec.get('coluna_0'), rec)
-									rec.pop('coluna_0', None)
-									rec['datas'] = datas
-								except Exception:
-									pass
-					else:
-						rec['colunas_parse_error'] = parsed.get('error')
-					if used_text_key:
-						try:
-							rec.pop(used_text_key, None)
-						except Exception:
-							pass
-				rec['id'] = assigned
-				if 'dados_siisp' in rec:
-					val = rec.get('dados_siisp')
-					if isinstance(val, str):
-						parsed_ds = parse_texto_tabular(val)
-						if parsed_ds.get('ok') and int(parsed_ds.get('colunas_count') or 0) == 1:
-							rec['dados_siisp'] = parsed_ds.get('colunas', {}).get('coluna_0', [])
-						else:
-							rec['dados_siisp'] = []
-					elif not isinstance(val, list):
-						rec['dados_siisp'] = []
-				if 'dados_siisp' not in rec or rec.get('dados_siisp') is None:
-					rec['dados_siisp'] = []
-				
-				if not rec.get('dados_siisp') or len(rec.get('dados_siisp', [])) == 0:
-					try:
-						mes_num = int(rec.get('mes') or datetime.now().month)
-						ano_num = int(rec.get('ano') or datetime.now().year)
-						dias_no_mes = calendar.monthrange(ano_num, mes_num)[1]
-						rec['dados_siisp'] = [0] * dias_no_mes
-					except Exception:
-						rec['dados_siisp'] = [0] * 31
-				
-				# Filtrar por data de início do contrato (se ainda não foi filtrado)
-				if 'linhas' not in rec or rec.get('linhas') >= len(rec.get('datas', [])):
-					lote_id_rec = rec.get('lote_id')
-					if lote_id_rec:
-						try:
-							data_inicio = _get_lote_data_inicio(int(lote_id_rec))
-							data_fim = _get_lote_data_fim(int(lote_id_rec))
-							if data_inicio or data_fim:
-								mes_rec = int(rec.get('mes'))
-								ano_rec = int(rec.get('ano'))
-								meal_fields = [
-									'cafe_interno', 'cafe_funcionario',
-									'almoco_interno', 'almoco_funcionario',
-									'lanche_interno', 'lanche_funcionario',
-									'jantar_interno', 'jantar_funcionario'
-								]
-								indices_validos = []
-								datas = rec.get('datas', [])
-								for idx, data_str in enumerate(datas):
-									try:
-										dia = int(data_str.split('/')[0])
-										data_dia = datetime(ano_rec, mes_rec, dia)
-										valido = True
-										if data_inicio and data_dia < data_inicio:
-											valido = False
-										if data_fim and data_dia > data_fim:
-											valido = False
-										if valido:
-											indices_validos.append(idx)
-									except:
-										indices_validos.append(idx)
-								
-								if len(indices_validos) < len(datas):
-									# Filtrar arrays
-									for field in meal_fields:
-										if field in rec and isinstance(rec[field], list):
-											arr = rec[field]
-											rec[field] = [arr[i] for i in indices_validos if i < len(arr)]
-									if 'dados_siisp' in rec and isinstance(rec['dados_siisp'], list):
-										arr_siisp = rec['dados_siisp']
-										rec['dados_siisp'] = [arr_siisp[i] for i in indices_validos if i < len(arr_siisp)]
-									rec['datas'] = [datas[i] for i in indices_validos]
-									rec['linhas'] = len(indices_validos)
-						except:
-							pass
-				if 'criado_em' not in rec and matched_record.get('criado_em'):
-					rec['criado_em'] = matched_record.get('criado_em')
-				rec['atualizado_em'] = datetime.now().isoformat()
-				
-				_calcular_campos_comparativos_siisp(rec)
-				
-				valid_ok, valid_msg = _validate_map_day_lengths(rec)
-				if not valid_ok:
-					return {'success': False, 'error': f'Validação de tamanho falhou: {valid_msg}'}
-				mapas_list[matched_index] = rec
-				saved_ids.append(assigned)
-				saved_records.append(rec)
-				if 'operacoes' not in locals():
-					operacoes = []
-				operacoes.append('overwritten')
-				existing_ids.add(int(assigned))
+			mes, ano = _detect_mes_ano_from_entry(entry)
+			unidade = entry.get('unidade')
+			lote_id = entry.get('lote_id')
+			if not (mes and ano and unidade and lote_id):
 				continue
-
+			# Se houver campo texto tabular, converter para listas
 			possible_text_keys = ('texto', 'conteudo', 'dados', 'texto_raw', 'texto_mapas', 'mapa_texto')
 			text_val = None
 			used_text_key = None
@@ -752,8 +525,6 @@ def salvar_mapas_raw(payload):
 					entry['linhas'] = parsed.get('linhas')
 					entry['colunas_count'] = parsed.get('colunas_count')
 					col_count = int(parsed.get('colunas_count') or 0)
-					if col_count < 9:
-						return {'success': False, 'error': f'Texto tabular contém colunas insuficientes: {col_count} (<9)'}
 					if col_count == 1:
 						if 'coluna_0' in entry:
 							entry['dados_siisp'] = entry.pop('coluna_0')
@@ -780,145 +551,89 @@ def salvar_mapas_raw(payload):
 								entry['datas'] = datas
 							except Exception:
 								pass
-				else:
-					entry['colunas_parse_error'] = parsed.get('error')
 				if used_text_key:
 					try:
 						entry.pop(used_text_key, None)
 					except Exception:
 						pass
-			if provided is None:
-				assigned = next_id
-				next_id += 1
-			else:
-				try:
-					pid = int(provided)
-				except Exception:
-					return {'success': False, 'error': 'ID inválido fornecido'}
-				if pid in existing_ids or pid in saved_ids:
-					return {'success': False, 'error': f'ID já existe: {pid}'}
-				assigned = pid
-				if pid >= next_id:
-					next_id = pid + 1
+			mapa = Mapa.query.filter_by(mes=mes, ano=ano, unidade=unidade, lote_id=lote_id).first()
+			mapa_data = {}
+			dias_do_mes = 31
+			try:
+				if mes and ano:
+					dias_do_mes = calendar.monthrange(int(ano), int(mes))[1]
+			except Exception:
+				dias_do_mes = 31
+			# Preencher dados_siisp corretamente (parse string if needed)
+			dados_siisp = entry.get('dados_siisp')
+			if isinstance(dados_siisp, str):
+				# Tentar parsear como texto tabular (igual ao siisp.py)
+				parsed_siisp = parse_texto_tabular(dados_siisp)
+				if parsed_siisp.get('ok') and 'coluna_0' in parsed_siisp.get('colunas', {}):
+					dados_siisp = parsed_siisp['colunas']['coluna_0']
+				else:
+					dados_siisp = [0] * dias_do_mes
+			elif not isinstance(dados_siisp, list):
+				dados_siisp = [0] * dias_do_mes
+			mapa_data['dados_siisp'] = json.dumps(dados_siisp)
 
-			rec = dict(entry)
-			rec['id'] = assigned
-			if 'criado_em' not in rec:
-				rec['criado_em'] = datetime.now().isoformat()
-			if 'dados_siisp' in rec:
-				val = rec.get('dados_siisp')
-				if isinstance(val, str):
-					parsed_ds = parse_texto_tabular(val)
-					if parsed_ds.get('ok') and int(parsed_ds.get('colunas_count') or 0) == 1:
-						rec['dados_siisp'] = parsed_ds.get('colunas', {}).get('coluna_0', [])
-					else:
-						rec['dados_siisp'] = []
-				elif not isinstance(val, list):
-					rec['dados_siisp'] = []
-			if 'dados_siisp' not in rec or rec.get('dados_siisp') is None:
-				rec['dados_siisp'] = []
-			
-			if not rec.get('dados_siisp') or len(rec.get('dados_siisp', [])) == 0:
-				try:
-					mes_num = int(rec.get('mes') or datetime.now().month)
-					ano_num = int(rec.get('ano') or datetime.now().year)
-					dias_no_mes = calendar.monthrange(ano_num, mes_num)[1]
-					rec['dados_siisp'] = [0] * dias_no_mes
-				except Exception:
-					rec['dados_siisp'] = [0] * 31
-			
-			
-			# Filtrar por data de início do contrato (se ainda não foi filtrado)
-			if 'linhas' not in rec or rec.get('linhas') >= len(rec.get('datas', [])):
-				lote_id_rec = rec.get('lote_id')
-				if lote_id_rec:
-					try:
-						data_inicio = _get_lote_data_inicio(int(lote_id_rec))
-						data_fim = _get_lote_data_fim(int(lote_id_rec))
-						if data_inicio or data_fim:
-							mes_rec = int(rec.get('mes'))
-							ano_rec = int(rec.get('ano'))
-							meal_fields = [
-								'cafe_interno', 'cafe_funcionario',
-								'almoco_interno', 'almoco_funcionario',
-								'lanche_interno', 'lanche_funcionario',
-								'jantar_interno', 'jantar_funcionario'
-							]
-							indices_validos = []
-							datas = rec.get('datas', [])
-							for idx, data_str in enumerate(datas):
-								try:
-									dia = int(data_str.split('/')[0])
-									data_dia = datetime(ano_rec, mes_rec, dia)
-									valido = True
-									if data_inicio and data_dia < data_inicio:
-										valido = False
-									if data_fim and data_dia > data_fim:
-										valido = False
-									if valido:
-										indices_validos.append(idx)
-								except:
-									indices_validos.append(idx)
-							
-							if len(indices_validos) < len(datas):
-								# Filtrar arrays
-								for field in meal_fields:
-									if field in rec and isinstance(rec[field], list):
-										arr = rec[field]
-										rec[field] = [arr[i] for i in indices_validos if i < len(arr)]
-								if 'dados_siisp' in rec and isinstance(rec['dados_siisp'], list):
-									arr_siisp = rec['dados_siisp']
-									rec['dados_siisp'] = [arr_siisp[i] for i in indices_validos if i < len(arr_siisp)]
-								rec['datas'] = [datas[i] for i in indices_validos]
-								rec['linhas'] = len(indices_validos)
-					except:
-						pass
-			
-			_calcular_campos_comparativos_siisp(rec)
-			
-			valid_ok, valid_msg = _validate_map_day_lengths(rec)
-			if not valid_ok:
-				return {'success': False, 'error': f'Validação de tamanho falhou: {valid_msg}'}
-			mapas_list.append(rec)
-			saved_ids.append(assigned)
-			saved_records.append(rec)
-			if 'operacoes' not in locals():
-				operacoes = []
-			operacoes.append('created')
+			# Preencher campos de refeições
+			meal_fields = [
+				'cafe_interno', 'cafe_funcionario',
+				'almoco_interno', 'almoco_funcionario',
+				'lanche_interno', 'lanche_funcionario',
+				'jantar_interno', 'jantar_funcionario'
+			]
+			for field in meal_fields:
+				val = entry.get(field)
+				if isinstance(val, list):
+					mapa_data[field] = json.dumps(val)
+				else:
+					mapa_data[field] = json.dumps([0] * dias_do_mes)
 
-		mapas_por_periodo = {}
-		
-		for mapa in mapas_list:
-			mes, ano = _detect_mes_ano_from_entry(mapa)
-			if mes and ano:
-				key = (mes, ano)
-				if key not in mapas_por_periodo:
-					mapas_por_periodo[key] = []
-				mapas_por_periodo[key].append(mapa)
+			# Calcular *_siisp = campo - dados_siisp
+			for field in meal_fields:
+				campo = json.loads(mapa_data[field])
+				siisp = [campo[i] - dados_siisp[i] if i < len(campo) and i < len(dados_siisp) else 0 for i in range(dias_do_mes)]
+				mapa_data[f'{field}_siisp'] = json.dumps(siisp)
+
+			# Preencher datas
+			datas = entry.get('datas')
+			if isinstance(datas, list):
+				mapa_data['datas'] = json.dumps(datas)
 			else:
-				print(f"⚠️ Mapa sem mes/ano detectável: {mapa.get('id', 'sem id')}")
-		
-		all_saved = True
-		for (mes, ano), mapas_periodo in mapas_por_periodo.items():
-			ok = _save_mapas_partitioned(mapas_periodo, mes, ano)
-			if not ok:
-				all_saved = False
-				print(f"❌ Falha ao salvar mapas de {mes:02d}/{ano}")
-		
-		if not all_saved:
-			return {'success': False, 'error': 'Erro ao salvar alguns arquivos de mapas'}
-		
-		if len(saved_records) == 1:
-			ret = {'success': True, 'id': saved_records[0]['id'], 'registro': saved_records[0]}
-			if 'operacoes' in locals() and isinstance(operacoes, list) and len(operacoes) == 1:
-				ret['operacao'] = operacoes[0]
-			return ret
-		ret = {'success': True, 'ids': saved_ids, 'registros': saved_records}
-		if 'operacoes' in locals() and isinstance(operacoes, list):
-			ret['operacoes'] = operacoes
-		return ret
-	except Exception:
-		return {'success': False, 'error': 'Erro ao salvar mapas'}
+				mapa_data['datas'] = json.dumps([])
+
+			# Preencher outros campos
+			for field in mapa_fields:
+				if field in mapa_data:
+					continue
+				val = entry.get(field)
+				if val is not None:
+					mapa_data[field] = val
+				elif field in ['linhas', 'colunas_count', 'lote_id', 'mes', 'ano']:
+					mapa_data[field] = 0
+				elif field in ['criado_em', 'atualizado_em']:
+					mapa_data[field] = datetime.now().isoformat()
+				else:
+					mapa_data[field] = ''
+			if mapa:
+				for k, v in mapa_data.items():
+					setattr(mapa, k, v)
+				mapa.atualizado_em = datetime.now().isoformat()
+				db.session.commit()
+				saved_ids.append(mapa.id)
+				saved_records.append(mapa)
+			else:
+				novo_mapa = Mapa(**mapa_data)
+				db.session.add(novo_mapa)
+				db.session.commit()
+				saved_ids.append(novo_mapa.id)
+				saved_records.append(novo_mapa)
+		return {'success': True, 'ids': saved_ids, 'registros': [m.id for m in saved_records]}
+	except Exception as e:
+		db.session.rollback()
+		return {'success': False, 'error': f'Erro ao salvar mapas: {e}'}
 
 
 def preparar_dados_entrada_manual(data):
@@ -1092,18 +807,16 @@ def reordenar_registro_mapas(registro_id):
 		return False
 
 
+
 def excluir_mapa(payload):
 	if not isinstance(payload, dict):
 		return {'success': False, 'error': 'Payload inválido'}
-	
 	unidade = payload.get('unidade', '').strip()
 	mes = payload.get('mes')
 	ano = payload.get('ano')
 	lote_id = payload.get('lote_id')
-	
 	if not unidade or not mes or not ano:
 		return {'success': False, 'error': 'Campos obrigatórios ausentes: unidade, mes, ano'}
-	
 	try:
 		mes = int(mes)
 		ano = int(ano)
@@ -1111,68 +824,17 @@ def excluir_mapa(payload):
 			lote_id = int(lote_id)
 	except Exception:
 		return {'success': False, 'error': 'Valores inválidos para mes, ano ou lote_id'}
-	
-	if mes < 1 or mes > 12:
-		return {'success': False, 'error': 'Mês deve estar entre 1 e 12'}
-	
-	mapas_existentes = _load_mapas_partitioned(mes, ano)
-	if mapas_existentes is None:
-		return {
-			'success': False,
-			'error': f'Nenhum mapa encontrado para {mes:02d}/{ano}. Não há dados para excluir.'
-		}
-	
-	mapa_encontrado = None
-	indice_mapa = None
-	for i, m in enumerate(mapas_existentes):
-		if not isinstance(m, dict):
-			continue
-		m_unidade = str(m.get('unidade', '')).strip()
-		m_mes = m.get('mes')
-		m_ano = m.get('ano')
-		
-		try:
-			if (m_unidade.lower() == unidade.lower() and 
-				int(m_mes) == int(mes) and
-				int(m_ano) == int(ano)):
-				if lote_id is not None:
-					m_lote_id = m.get('lote_id')
-					if int(m_lote_id) != int(lote_id):
-						continue
-				mapa_encontrado = m
-				indice_mapa = i
-				break
-		except Exception:
-			continue
-	
-	if mapa_encontrado is None:
-		msg_extra = f' e Lote {lote_id}' if lote_id is not None else ''
-		return {
-			'success': False,
-			'error': f'Mapa não encontrado para Unidade "{unidade}", período {mes:02d}/{ano}{msg_extra}.'
-		}
-	
-	mapa_id = mapa_encontrado.get('id')
-	
-	mapas_existentes.pop(indice_mapa)
-	
-	if len(mapas_existentes) == 0:
-		filepath = _get_mapas_filepath(mes, ano)
-		try:
-			if os.path.isfile(filepath):
-				os.remove(filepath)
-				print(f"🗑️ Arquivo vazio deletado: {filepath}")
-		except Exception as e:
-			print(f"⚠️ Aviso: Não foi possível deletar arquivo vazio: {e}")
-	else:
-		if not _save_mapas_partitioned(mapas_existentes, mes, ano):
-			return {'success': False, 'error': 'Erro ao salvar dados após exclusão'}
-	
-	return {
-		'success': True,
-		'mensagem': f'Mapa {mapa_id} da unidade "{unidade}" ({mes:02d}/{ano}) excluído com sucesso.',
-		'id': mapa_id
-	}
+	mapa = Mapa.query.filter_by(mes=mes, ano=ano, unidade=unidade, lote_id=lote_id).first()
+	if not mapa:
+		return {'success': False, 'error': f'Mapa não encontrado para Unidade "{unidade}", período {mes:02d}/{ano}.'}
+	mapa_id = mapa.id
+	try:
+		db.session.delete(mapa)
+		db.session.commit()
+		return {'success': True, 'mensagem': f'Mapa {mapa_id} da unidade "{unidade}" ({mes:02d}/{ano}) excluído com sucesso.', 'id': mapa_id}
+	except Exception as e:
+		db.session.rollback()
+		return {'success': False, 'error': f'Erro ao excluir mapa: {e}'}
 
 
 def calcular_metricas_lotes(lotes, mapas):
