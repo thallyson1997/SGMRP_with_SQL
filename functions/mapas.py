@@ -869,10 +869,10 @@ def calcular_metricas_lotes(lotes, mapas):
 			lote_id = int(m.get('lote_id'))
 		except Exception:
 			continue
-		
+
 		mes = m.get('mes') or m.get('month') or m.get('mes_num') or m.get('month_num')
 		ano = m.get('ano') or m.get('year')
-		
+
 		if (mes is None or ano is None) and isinstance(m.get('datas'), list) and len(m.get('datas')) > 0:
 			try:
 				parts = str(m.get('datas')[0]).split('/')
@@ -881,23 +881,34 @@ def calcular_metricas_lotes(lotes, mapas):
 					ano = int(parts[2])
 			except Exception:
 				pass
-		
+
 		try:
 			mes_i = int(mes)
 			ano_i = int(ano)
 		except Exception:
 			continue
-		
+
 		meses_por_lote[lote_id].add((mes_i, ano_i))
-		
-		try:
-			total = int(m.get('refeicoes_mes') or 0)
-		except Exception:
+
+
+		# Se não houver campo 'refeicoes_mes', calcular manualmente
+		if 'refeicoes_mes' in m and m.get('refeicoes_mes') not in [None, '', 0, '0', 0.0]:
 			try:
-				total = int(float(m.get('refeicoes_mes') or 0))
+				total = int(m.get('refeicoes_mes') or 0)
 			except Exception:
-				total = 0
-		
+				try:
+					total = int(float(m.get('refeicoes_mes') or 0))
+				except Exception:
+					total = 0
+		else:
+			# Calcular somando todos os campos de refeições
+			total = 0
+			for campo in ['cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario', 'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario']:
+				vals = m.get(campo, [])
+				if isinstance(vals, list):
+					soma = sum(int(x) if x is not None else 0 for x in vals)
+					total += soma
+
 		totais_refeicoes_por_lote[lote_id] = totais_refeicoes_por_lote.get(lote_id, 0) + total
 		
 		custo_mapa = 0.0

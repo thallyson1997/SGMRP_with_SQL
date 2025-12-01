@@ -270,6 +270,7 @@ def lotes():
     mapas = carregar_mapas_db()
     calcular_metricas_lotes(lotes, mapas)
     calcular_ultima_atividade_lotes(lotes, mapas)
+    # Debug: Verificar se campo de refeições/mês está presente
     empresas = []
     seen = set()
     for l in lotes:
