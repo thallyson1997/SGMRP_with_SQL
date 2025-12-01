@@ -230,8 +230,11 @@ def dashboard():
     usuario_nome = session.get('usuario_nome', '')
     dashboard_data = carregar_lotes_para_dashboard()
     lotes = dashboard_data.get('lotes', [])
-    from functions.mapas import carregar_mapas_db
+    from functions.mapas import carregar_mapas_db, serialize_mapa
     mapas_dados = carregar_mapas_db()
+    print(f"DEBUG mapas_dados count: {len(mapas_dados)}")
+    for m in mapas_dados:
+        print(f"Mapa: id={m.get('id')}, lote_id={m.get('lote_id')}, mes={m.get('mes')}, ano={m.get('ano')}, unidade={m.get('unidade')}")
     # Agrupar mapas por lote_id
     mapas_por_lote = {}
     for mapa in mapas_dados:
@@ -322,7 +325,7 @@ def lote_detalhes(lote_id):
             if unidade:
                 unidades_lote.append(unidade.nome)
 
-    from functions.mapas import carregar_mapas_db
+    from functions.mapas import carregar_mapas_db, serialize_mapa
     mapas_lote = carregar_mapas_db({'lote_id': lote.get('id')})
     return render_template('lote-detalhes.html', lote=lote, unidades_lote=unidades_lote, mapas_lote=mapas_lote)
 

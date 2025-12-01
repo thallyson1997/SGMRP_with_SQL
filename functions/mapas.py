@@ -1,4 +1,32 @@
 # Função utilitária para carregar mapas do banco como lista de dicts
+def serialize_mapa(m):
+	# Serializa um registro Mapa do banco para dict, garantindo todos os campos necessários
+	mapa_dict = {c.name: getattr(m, c.name) for c in m.__table__.columns}
+	# Lista de todos os campos que podem ser JSON
+	json_fields = [
+		'cafe_interno_siisp', 'cafe_funcionario_siisp',
+		'almoco_interno_siisp', 'almoco_funcionario_siisp',
+		'lanche_interno_siisp', 'lanche_funcionario_siisp',
+		'jantar_interno_siisp', 'jantar_funcionario_siisp',
+		'dados_siisp', 'cafe_interno', 'cafe_funcionario',
+		'almoco_interno', 'almoco_funcionario',
+		'lanche_interno', 'lanche_funcionario',
+		'jantar_interno', 'jantar_funcionario', 'datas'
+	]
+	for field in json_fields:
+		if field in mapa_dict and isinstance(mapa_dict[field], str):
+			try:
+				mapa_dict[field] = json.loads(mapa_dict[field])
+			except Exception:
+				mapa_dict[field] = []
+		elif field in mapa_dict and mapa_dict[field] is None:
+			mapa_dict[field] = []
+	# Garante que todos os campos existam
+	for field in json_fields:
+		if field not in mapa_dict:
+			mapa_dict[field] = []
+	return mapa_dict
+
 def carregar_mapas_db(filtros=None):
 	from .models import Mapa
 	query = Mapa.query
@@ -6,25 +34,7 @@ def carregar_mapas_db(filtros=None):
 		for k, v in filtros.items():
 			query = query.filter(getattr(Mapa, k) == v)
 	mapas_db = query.all()
-	mapas = []
-	for m in mapas_db:
-		mapa_dict = {c.name: getattr(m, c.name) for c in m.__table__.columns}
-		for field in [
-			'cafe_interno_siisp', 'cafe_funcionario_siisp',
-			'almoco_interno_siisp', 'almoco_funcionario_siisp',
-			'lanche_interno_siisp', 'lanche_funcionario_siisp',
-			'jantar_interno_siisp', 'jantar_funcionario_siisp',
-			'dados_siisp', 'cafe_interno', 'cafe_funcionario',
-			'almoco_interno', 'almoco_funcionario',
-			'lanche_interno', 'lanche_funcionario',
-			'jantar_interno', 'jantar_funcionario', 'datas'
-		]:
-			if field in mapa_dict and isinstance(mapa_dict[field], str):
-				try:
-					mapa_dict[field] = json.loads(mapa_dict[field])
-				except Exception:
-					pass
-		mapas.append(mapa_dict)
+	mapas = [serialize_mapa(m) for m in mapas_db]
 	return mapas
 import json
 import re
