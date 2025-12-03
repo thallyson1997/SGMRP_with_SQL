@@ -859,39 +859,47 @@ def calcular_metricas_lotes(lotes, mapas):
 	Returns:
 		None (modifica os lotes in-place)
 	"""
+	print(f"[DEBUG] Iniciando calcular_metricas_lotes: lotes={len(lotes)}, mapas={len(mapas) if mapas else 0}")
 	meses_por_lote = defaultdict(set)
 	totais_refeicoes_por_lote = {}
 	totais_custos_por_lote = {}
 	totais_desvios_por_lote = {}
-	
+
 	for m in (mapas or []):
+		# Se for objeto, converte para dict
+		if not isinstance(m, dict):
+			try:
+				m = serialize_mapa(m)
+			except Exception:
+				pass
+				pass
+				continue
 		try:
 			lote_id = int(m.get('lote_id'))
 		except Exception:
+			print(f"[DEBUG] lote_id inválido em mapa: {m.get('lote_id') if hasattr(m, 'get') else m}")
 			continue
 
 		mes = m.get('mes') or m.get('month') or m.get('mes_num') or m.get('month_num')
 		ano = m.get('ano') or m.get('year')
 
 		if (mes is None or ano is None) and isinstance(m.get('datas'), list) and len(m.get('datas')) > 0:
-			try:
 				parts = str(m.get('datas')[0]).split('/')
 				if len(parts) >= 3:
 					mes = int(parts[1])
 					ano = int(parts[2])
-			except Exception:
+				print(f"[DEBUG] Erro ao extrair mes/ano de datas: {m.get('datas')}")
 				pass
 
 		try:
 			mes_i = int(mes)
 			ano_i = int(ano)
 		except Exception:
+			print(f"[DEBUG] mes/ano inválido: mes={mes}, ano={ano}")
 			continue
 
 		meses_por_lote[lote_id].add((mes_i, ano_i))
 
-
-		# Se não houver campo 'refeicoes_mes', calcular manualmente
 		if 'refeicoes_mes' in m and m.get('refeicoes_mes') not in [None, '', 0, '0', 0.0]:
 			try:
 				total = int(m.get('refeicoes_mes') or 0)
@@ -909,8 +917,57 @@ def calcular_metricas_lotes(lotes, mapas):
 					soma = sum(int(x) if x is not None else 0 for x in vals)
 					total += soma
 
-		totais_refeicoes_por_lote[lote_id] = totais_refeicoes_por_lote.get(lote_id, 0) + total
-		
+		print(f"\n[DEBUG] Mapa lote_id={lote_id}, mes={mes_i}, ano={ano_i}, total_refeicoes={total}")
+		def soma_positivos(lista):
+			total = 0
+			for x in lista:
+				try:
+					val = float(x)
+					if val > 0:
+						total += val
+				except (ValueError, TypeError):
+					continue
+			return total
+
+		for l_temp in lotes:
+			try:
+				if int(l_temp.get('id')) == lote_id:
+					precos = l_temp.get('precos', {})
+					break
+			except Exception:
+				continue
+
+		def get_preco(refeicao, tipo):
+			if isinstance(precos.get(refeicao), dict):
+				valor = precos[refeicao].get(tipo, 0)
+			else:
+				chave = f"{refeicao}_{tipo}"
+				valor = precos.get(chave, 0)
+			try:
+				return float(valor)
+			except (ValueError, TypeError):
+				return 0.0
+
+		print(f"[DEBUG] cafe_interno_siisp soma_positivos={soma_positivos(m.get('cafe_interno_siisp', []))} * preco={get_preco('cafe', 'interno')} = {soma_positivos(m.get('cafe_interno_siisp', [])) * get_preco('cafe', 'interno')}")
+		print(f"[DEBUG] dados_siisp={m.get('dados_siisp')}")
+		print(f"[DEBUG] cafe_funcionario_siisp soma_positivos={soma_positivos(m.get('cafe_funcionario_siisp', []))} * preco={get_preco('cafe', 'funcionario')} = {soma_positivos(m.get('cafe_funcionario_siisp', [])) * get_preco('cafe', 'funcionario')}")
+		print(f"[DEBUG] almoco_interno_siisp soma_positivos={soma_positivos(m.get('almoco_interno_siisp', []))} * preco={get_preco('almoco', 'interno')} = {soma_positivos(m.get('almoco_interno_siisp', [])) * get_preco('almoco', 'interno')}")
+		print(f"[DEBUG] almoco_funcionario_siisp soma_positivos={soma_positivos(m.get('almoco_funcionario_siisp', []))} * preco={get_preco('almoco', 'funcionario')} = {soma_positivos(m.get('almoco_funcionario_siisp', [])) * get_preco('almoco', 'funcionario')}")
+		print(f"[DEBUG] lanche_interno_siisp soma_positivos={soma_positivos(m.get('lanche_interno_siisp', []))} * preco={get_preco('lanche', 'interno')} = {soma_positivos(m.get('lanche_interno_siisp', [])) * get_preco('lanche', 'interno')}")
+		print(f"[DEBUG] lanche_funcionario_siisp soma_positivos={soma_positivos(m.get('lanche_funcionario_siisp', []))} * preco={get_preco('lanche', 'funcionario')} = {soma_positivos(m.get('lanche_funcionario_siisp', [])) * get_preco('lanche', 'funcionario')}")
+		print(f"[DEBUG] jantar_interno_siisp soma_positivos={soma_positivos(m.get('jantar_interno_siisp', []))} * preco={get_preco('jantar', 'interno')} = {soma_positivos(m.get('jantar_interno_siisp', [])) * get_preco('jantar', 'interno')}")
+		print(f"[DEBUG] jantar_funcionario_siisp soma_positivos={soma_positivos(m.get('jantar_funcionario_siisp', []))} * preco={get_preco('jantar', 'funcionario')} = {soma_positivos(m.get('jantar_funcionario_siisp', [])) * get_preco('jantar', 'funcionario')}")
+		desvio_total_produtos = (
+			soma_positivos(m.get('cafe_interno_siisp', [])) * get_preco('cafe', 'interno') +
+			soma_positivos(m.get('cafe_funcionario_siisp', [])) * get_preco('cafe', 'funcionario') +
+			soma_positivos(m.get('almoco_interno_siisp', [])) * get_preco('almoco', 'interno') +
+			soma_positivos(m.get('almoco_funcionario_siisp', [])) * get_preco('almoco', 'funcionario') +
+			soma_positivos(m.get('lanche_interno_siisp', [])) * get_preco('lanche', 'interno') +
+			soma_positivos(m.get('lanche_funcionario_siisp', [])) * get_preco('lanche', 'funcionario') +
+			soma_positivos(m.get('jantar_interno_siisp', [])) * get_preco('jantar', 'interno') +
+			soma_positivos(m.get('jantar_funcionario_siisp', [])) * get_preco('jantar', 'funcionario')
+		)
+
 		custo_mapa = 0.0
 		desvio_mapa = 0.0
 		lote_do_mapa = None
@@ -920,27 +977,23 @@ def calcular_metricas_lotes(lotes, mapas):
 					lote_do_mapa = l_temp
 					break
 			except Exception:
-				continue
-		
+				pass
+
+		# Fim do bloco for/try/except
 		if lote_do_mapa and isinstance(lote_do_mapa.get('precos'), dict):
 			precos = lote_do_mapa.get('precos', {})
-			
-			# Função auxiliar para obter preço (suporta ambos formatos)
+
 			def get_preco(refeicao, tipo):
-				# Tentar formato aninhado primeiro: cafe.interno
 				if isinstance(precos.get(refeicao), dict):
 					valor = precos[refeicao].get(tipo, 0)
 				else:
-					# Formato plano: cafe_interno
 					chave = f"{refeicao}_{tipo}"
 					valor = precos.get(chave, 0)
-				
-				# Converter para float se for string
 				try:
 					return float(valor)
 				except (ValueError, TypeError):
 					return 0.0
-			
+
 			meal_fields = [
 				('cafe_interno', get_preco('cafe', 'interno')),
 				('cafe_funcionario', get_preco('cafe', 'funcionario')),
@@ -951,47 +1004,45 @@ def calcular_metricas_lotes(lotes, mapas):
 				('jantar_interno', get_preco('jantar', 'interno')),
 				('jantar_funcionario', get_preco('jantar', 'funcionario'))
 			]
-			
+
 			for field_name, preco_unitario in meal_fields:
 				if field_name in m and isinstance(m[field_name], list):
 					try:
 						quantidade = sum(int(x) if x is not None else 0 for x in m[field_name])
 						custo_mapa += quantidade * preco_unitario
 					except Exception:
+						print(f"[DEBUG] Erro ao somar {field_name} no mapa {lote_id}")
 						pass
-			
+
 			# Calcular desvios baseado em discrepâncias SIISP
 			for i in range(len(m.get('data', []))):
-				siisp = m.get('n_siisp', [])[i] if m.get('n_siisp') and i < len(m.get('n_siisp', [])) else 0
+				siisp = m.get('dados_siisp', [])[i] if m.get('dados_siisp') and i < len(m.get('dados_siisp', [])) else 0
 				if siisp > 0:
-					# Usar colunas _siisp se disponíveis
 					if m.get('cafe_interno_siisp') and i < len(m.get('cafe_interno_siisp', [])):
 						excedente_cafe = max(0, m['cafe_interno_siisp'][i])
 						desvio_mapa += excedente_cafe * get_preco('cafe', 'interno')
 					if m.get('almoco_interno_siisp') and i < len(m.get('almoco_interno_siisp', [])):
 						excedente_almoco = max(0, m['almoco_interno_siisp'][i])
-						desvio_mapa += excedente_almoco * get_preco('almoco', 'interno')
 					if m.get('lanche_interno_siisp') and i < len(m.get('lanche_interno_siisp', [])):
 						excedente_lanche = max(0, m['lanche_interno_siisp'][i])
 						desvio_mapa += excedente_lanche * get_preco('lanche', 'interno')
 					if m.get('jantar_interno_siisp') and i < len(m.get('jantar_interno_siisp', [])):
 						excedente_jantar = max(0, m['jantar_interno_siisp'][i])
 						desvio_mapa += excedente_jantar * get_preco('jantar', 'interno')
-		
+			print(f"[DEBUG] lote_id={lote_id}, custo_mapa={custo_mapa}, desvio_mapa={desvio_mapa}")
+
 		totais_custos_por_lote[lote_id] = totais_custos_por_lote.get(lote_id, 0.0) + custo_mapa
-		totais_desvios_por_lote[lote_id] = totais_desvios_por_lote.get(lote_id, 0.0) + desvio_mapa
-	
+		totais_desvios_por_lote[lote_id] = totais_desvios_por_lote.get(lote_id, 0.0) + desvio_total_produtos
+
 	# Atualizar os lotes com as métricas calculadas
 	for lote in lotes:
 		lote_id = lote.get('id')
 		meses_count = len(meses_por_lote.get(lote_id, []))
 		lote['meses_cadastrados'] = meses_count
-		
-		# Totais acumulados (sem dividir)
+
 		custo_total = totais_custos_por_lote.get(lote_id, 0.0)
 		desvio_total = totais_desvios_por_lote.get(lote_id, 0.0)
-		
-		# Dividir por quantidade de meses para obter MÉDIA mensal
+
 		if meses_count > 0:
 			lote['refeicoes_mes'] = totais_refeicoes_por_lote.get(lote_id, 0) / meses_count
 			lote['custo_mes'] = custo_total / meses_count
@@ -1000,20 +1051,18 @@ def calcular_metricas_lotes(lotes, mapas):
 			lote['refeicoes_mes'] = 0
 			lote['custo_mes'] = 0.0
 			lote['desvio_mes'] = 0.0
-		
-		# Calcular percentual executado: (custo total / valor contratual) * 100
+
 		valor_contratual = lote.get('valor_contratual', 0)
 		try:
 			valor_contratual = float(valor_contratual)
 		except (ValueError, TypeError):
 			valor_contratual = 0.0
-		
+
 		if valor_contratual > 0:
 			lote['percentual_executado'] = round((custo_total / valor_contratual) * 100, 1)
 		else:
 			lote['percentual_executado'] = 0.0
-		
-		# Manter conformidade para compatibilidade com dashboard.html e lote-detalhes.html
+
 		if lote['custo_mes'] > 0:
 			lote['conformidade'] = round(max(0, ((lote['custo_mes'] - lote['desvio_mes']) / lote['custo_mes']) * 100), 1)
 		else:

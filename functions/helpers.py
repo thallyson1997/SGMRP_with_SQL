@@ -361,6 +361,8 @@ def carregar_lotes_para_dashboard():
 
 
 def gerar_excel_exportacao(lote_id, unidades_list, data_inicio=None, data_fim=None):
+	BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+	dados_dir = os.path.join(BASE_DIR, '..', 'dados')
 	"""
 	Gera arquivo Excel com dados de um lote específico
 	"""
@@ -389,6 +391,20 @@ def gerar_excel_exportacao(lote_id, unidades_list, data_inicio=None, data_fim=No
 			return {'success': False, 'error': 'Lote não encontrado'}
 		
 		precos = normalizar_precos(lote.get('precos', {}))
+		# Garantir que todos os preços são float (número) para exportação
+		for tipo_refeicao in precos:
+			if isinstance(precos[tipo_refeicao], dict):
+				for subcampo in precos[tipo_refeicao]:
+					valor = precos[tipo_refeicao][subcampo]
+					try:
+						precos[tipo_refeicao][subcampo] = float(str(valor).replace(',', '.'))
+					except Exception:
+						precos[tipo_refeicao][subcampo] = 0.0
+			else:
+				try:
+					precos[tipo_refeicao] = float(str(precos[tipo_refeicao]).replace(',', '.'))
+				except Exception:
+					precos[tipo_refeicao] = 0.0
 
 		# Converter strings de data para datetime se fornecidas
 		data_inicio_dt = None
@@ -406,104 +422,56 @@ def gerar_excel_exportacao(lote_id, unidades_list, data_inicio=None, data_fim=No
 			except Exception as e:
 				print(f"⚠️ Erro ao converter data_fim: {e}")
 		
+
+		# Buscar mapas diretamente do banco de dados
+		from functions.mapas import carregar_mapas_db
+		filtros = {'lote_id': lote_id}
+		mapas_db = carregar_mapas_db(filtros)
 		mapas_filtrados = []
-		base_dir = os.path.dirname(os.path.dirname(__file__))
-		dados_dir = os.path.join(base_dir, 'dados')
-		
-		mapas_files = glob.glob(os.path.join(dados_dir, 'mapas_*.json'))
-		print(f"📂 Arquivos de mapas encontrados: {len(mapas_files)}")
-		
-		for mapas_file in mapas_files:
-			filename = os.path.basename(mapas_file)
-			match = re.search(r'mapas_(\d{4})_(\d{2})\.json', filename)
-			if match:
-				ano_arquivo = int(match.group(1))
-				mes_arquivo = int(match.group(2))
-				
-				mapas_mes = _load_mapas_partitioned(mes_arquivo, ano_arquivo)
-				print(f"📂 Processando {filename}: {len(mapas_mes)} mapas")
-				
-				for m in mapas_mes:
+		for m in mapas_db:
+			# Filtrar por unidade
+			if unidades_list:
+				unidade_nome = (m.get('unidade') or '').strip()
+				if unidade_nome not in unidades_list:
+					continue
+			# Filtrar por intervalo de datas
+			if data_inicio_dt or data_fim_dt:
+				datas = m.get('datas', [])
+				if not datas:
+					continue
+				datas_filtradas = []
+				indices_filtrados = []
+				for idx, data_str in enumerate(datas):
 					try:
-						if int(m.get('lote_id')) != int(lote_id):
+						data_dt = None
+						for formato in ['%d/%m/%Y', '%Y-%m-%d']:
+							try:
+								data_dt = datetime.strptime(data_str, formato)
+								break
+							except:
+								continue
+						if not data_dt:
 							continue
-						
-						print(f"✅ Mapa do lote {lote_id} encontrado - Mês: {m.get('mes')}/{m.get('ano')}, Unidade: {m.get('unidade')}")
-						
-						if unidades_list:
-							unidade_nome = (m.get('unidade') or '').strip()
-							if unidade_nome not in unidades_list:
-								print(f"⏭️ Unidade '{unidade_nome}' não está na lista de filtros")
-								continue
-						
-						# Filtrar por intervalo de datas se fornecido
-						if data_inicio_dt or data_fim_dt:
-							datas = m.get('datas', [])
-							if not datas:
-								print(f"⚠️ Mapa sem datas")
-								continue
-							
-							print(f"📅 Mapa tem {len(datas)} datas. Primeira: {datas[0] if datas else 'N/A'}, Última: {datas[-1] if datas else 'N/A'}")
-							
-							# Filtrar apenas as datas que estão dentro do intervalo
-							datas_filtradas = []
-							indices_filtrados = []
-							
-							for idx, data_str in enumerate(datas):
-								try:
-									# Tentar formatos comuns de data
-									data_dt = None
-									for formato in ['%d/%m/%Y', '%Y-%m-%d']:
-										try:
-											data_dt = datetime.strptime(data_str, formato)
-											break
-										except:
-											continue
-									
-									if not data_dt:
-										print(f"⚠️ Erro ao processar data '{data_str}': formato desconhecido")
-										continue
-									
-									# Verificar se está no intervalo
-									if data_inicio_dt and data_dt < data_inicio_dt:
-										continue
-									if data_fim_dt and data_dt > data_fim_dt:
-										continue
-									
-									datas_filtradas.append(data_str)
-									indices_filtrados.append(idx)
-								except Exception as e:
-									print(f"⚠️ Erro ao processar data '{data_str}': {e}")
-									continue
-							
-							print(f"✅ Datas filtradas: {len(datas_filtradas)} de {len(datas)}")
-							
-							# Se não houver datas no intervalo, pular este mapa
-							if not datas_filtradas:
-								print(f"⏭️ Nenhuma data no intervalo solicitado")
-								continue
-							
-							# Criar cópia do mapa com dados filtrados
-							m_filtrado = m.copy()
-							m_filtrado['datas'] = datas_filtradas
-							
-							# Filtrar arrays de dados usando os índices
-							for campo in ['cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
-										  'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario',
-										  'dados_siisp', 'n_siisp']:
-								if campo in m_filtrado and isinstance(m_filtrado[campo], list):
-									m_filtrado[campo] = [m_filtrado[campo][i] for i in indices_filtrados if i < len(m_filtrado[campo])]
-							
-							mapas_filtrados.append(m_filtrado)
-						else:
-							mapas_filtrados.append(m)
-					except Exception as e:
-						print(f"❌ Erro ao processar mapa: {e}")
-						import traceback
-						traceback.print_exc()
+						if data_inicio_dt and data_dt < data_inicio_dt:
+							continue
+						if data_fim_dt and data_dt > data_fim_dt:
+							continue
+						datas_filtradas.append(data_str)
+						indices_filtrados.append(idx)
+					except Exception:
 						continue
-		
-		print(f"📊 Total de mapas filtrados: {len(mapas_filtrados)}")
+				if not datas_filtradas:
+					continue
+				m_filtrado = m.copy()
+				m_filtrado['datas'] = datas_filtradas
+				for campo in ['cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+							  'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario',
+							  'dados_siisp', 'n_siisp']:
+					if campo in m_filtrado and isinstance(m_filtrado[campo], list):
+						m_filtrado[campo] = [m_filtrado[campo][i] for i in indices_filtrados if i < len(m_filtrado[campo])]
+				mapas_filtrados.append(m_filtrado)
+			else:
+				mapas_filtrados.append(m)
 
 		if not mapas_filtrados:
 			return {'success': False, 'error': 'Nenhum dado encontrado para os filtros selecionados'}
