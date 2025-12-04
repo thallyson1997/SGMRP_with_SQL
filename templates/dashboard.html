@@ -848,19 +848,6 @@
             document.body.style.overflow = '';
         }
 
-        // LOG DE DEPURAÇÃO: Exibe os dados dos mapas e os campos de refeições do primeiro mapa
-        // console.log('DEBUG mapasDados:', mapasDados);
-        // if (mapasDados.length > 0) {
-        //     const m = mapasDados[0];
-        //     console.log('cafe_interno:', m.cafe_interno);
-        //     console.log('cafe_funcionario:', m.cafe_funcionario);
-        //     console.log('almoco_interno:', m.almoco_interno);
-        //     console.log('almoco_funcionario:', m.almoco_funcionario);
-        //     console.log('lanche_interno:', m.lanche_interno);
-        //     console.log('lanche_funcionario:', m.lanche_funcionario);
-        //     console.log('jantar_interno:', m.jantar_interno);
-        //     console.log('jantar_funcionario:', m.jantar_funcionario);
-        // }
 
         // Event listeners para notificações
         document.getElementById('btn-ver-todas-notificacoes')?.addEventListener('click', function(e) {
@@ -931,7 +918,6 @@
             const ano = parseInt(document.getElementById('filtro-ano').value);
             const loteId = parseInt(document.getElementById('filtro-lote').value);
             
-            console.log('Atualizando resumo para:', { mes, ano, loteId });
             
             // Filtrar mapas baseado nos critérios
             let mapasFiltrados = mapasDados;
@@ -948,7 +934,6 @@
                 mapasFiltrados = mapasFiltrados.filter(mapa => mapa.lote_id === loteId);
             }
             
-            console.log('Mapas filtrados:', mapasFiltrados.length);
             
             // Calcular estatísticas
             const estatisticas = calcularEstatisticas(mapasFiltrados);
@@ -962,7 +947,6 @@
             // Atualizar cards dos lotes
             atualizarCardsLotes();
             
-            console.log('Resumo atualizado:', estatisticas);
         }
         
         // Função para calcular estatísticas dos mapas filtrados
@@ -1321,7 +1305,6 @@
                 }
             });
             
-            console.log('Cards dos lotes atualizados baseado nos filtros');
         }
 
         // Logout

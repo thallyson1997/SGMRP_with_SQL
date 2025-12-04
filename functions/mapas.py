@@ -859,7 +859,7 @@ def calcular_metricas_lotes(lotes, mapas):
 	Returns:
 		None (modifica os lotes in-place)
 	"""
-	print(f"[DEBUG] Iniciando calcular_metricas_lotes: lotes={len(lotes)}, mapas={len(mapas) if mapas else 0}")
+	# print removido: [DEBUG] Iniciando calcular_metricas_lotes
 	meses_por_lote = defaultdict(set)
 	totais_refeicoes_por_lote = {}
 	totais_custos_por_lote = {}
@@ -877,7 +877,7 @@ def calcular_metricas_lotes(lotes, mapas):
 		try:
 			lote_id = int(m.get('lote_id'))
 		except Exception:
-			print(f"[DEBUG] lote_id inválido em mapa: {m.get('lote_id') if hasattr(m, 'get') else m}")
+			# print removido: [DEBUG] lote_id inválido em mapa
 			continue
 
 		mes = m.get('mes') or m.get('month') or m.get('mes_num') or m.get('month_num')
@@ -888,14 +888,14 @@ def calcular_metricas_lotes(lotes, mapas):
 				if len(parts) >= 3:
 					mes = int(parts[1])
 					ano = int(parts[2])
-				print(f"[DEBUG] Erro ao extrair mes/ano de datas: {m.get('datas')}")
+				# print removido: [DEBUG] Erro ao extrair mes/ano de datas
 				pass
 
 		try:
 			mes_i = int(mes)
 			ano_i = int(ano)
 		except Exception:
-			print(f"[DEBUG] mes/ano inválido: mes={mes}, ano={ano}")
+			# print removido: [DEBUG] mes/ano inválido
 			continue
 
 		meses_por_lote[lote_id].add((mes_i, ano_i))
@@ -917,7 +917,7 @@ def calcular_metricas_lotes(lotes, mapas):
 					soma = sum(int(x) if x is not None else 0 for x in vals)
 					total += soma
 
-		print(f"\n[DEBUG] Mapa lote_id={lote_id}, mes={mes_i}, ano={ano_i}, total_refeicoes={total}")
+		# print removido: [DEBUG] Mapa lote_id=..., total_refeicoes=...
 		def soma_positivos(lista):
 			total = 0
 			for x in lista:
@@ -948,15 +948,15 @@ def calcular_metricas_lotes(lotes, mapas):
 			except (ValueError, TypeError):
 				return 0.0
 
-		print(f"[DEBUG] cafe_interno_siisp soma_positivos={soma_positivos(m.get('cafe_interno_siisp', []))} * preco={get_preco('cafe', 'interno')} = {soma_positivos(m.get('cafe_interno_siisp', [])) * get_preco('cafe', 'interno')}")
-		print(f"[DEBUG] dados_siisp={m.get('dados_siisp')}")
-		print(f"[DEBUG] cafe_funcionario_siisp soma_positivos={soma_positivos(m.get('cafe_funcionario_siisp', []))} * preco={get_preco('cafe', 'funcionario')} = {soma_positivos(m.get('cafe_funcionario_siisp', [])) * get_preco('cafe', 'funcionario')}")
-		print(f"[DEBUG] almoco_interno_siisp soma_positivos={soma_positivos(m.get('almoco_interno_siisp', []))} * preco={get_preco('almoco', 'interno')} = {soma_positivos(m.get('almoco_interno_siisp', [])) * get_preco('almoco', 'interno')}")
-		print(f"[DEBUG] almoco_funcionario_siisp soma_positivos={soma_positivos(m.get('almoco_funcionario_siisp', []))} * preco={get_preco('almoco', 'funcionario')} = {soma_positivos(m.get('almoco_funcionario_siisp', [])) * get_preco('almoco', 'funcionario')}")
-		print(f"[DEBUG] lanche_interno_siisp soma_positivos={soma_positivos(m.get('lanche_interno_siisp', []))} * preco={get_preco('lanche', 'interno')} = {soma_positivos(m.get('lanche_interno_siisp', [])) * get_preco('lanche', 'interno')}")
-		print(f"[DEBUG] lanche_funcionario_siisp soma_positivos={soma_positivos(m.get('lanche_funcionario_siisp', []))} * preco={get_preco('lanche', 'funcionario')} = {soma_positivos(m.get('lanche_funcionario_siisp', [])) * get_preco('lanche', 'funcionario')}")
-		print(f"[DEBUG] jantar_interno_siisp soma_positivos={soma_positivos(m.get('jantar_interno_siisp', []))} * preco={get_preco('jantar', 'interno')} = {soma_positivos(m.get('jantar_interno_siisp', [])) * get_preco('jantar', 'interno')}")
-		print(f"[DEBUG] jantar_funcionario_siisp soma_positivos={soma_positivos(m.get('jantar_funcionario_siisp', []))} * preco={get_preco('jantar', 'funcionario')} = {soma_positivos(m.get('jantar_funcionario_siisp', [])) * get_preco('jantar', 'funcionario')}")
+		# print removido: [DEBUG] cafe_interno_siisp soma_positivos
+		# print removido: [DEBUG] dados_siisp
+		# print removido: [DEBUG] cafe_funcionario_siisp soma_positivos
+		# print removido: [DEBUG] almoco_interno_siisp soma_positivos
+		# print removido: [DEBUG] almoco_funcionario_siisp soma_positivos
+		# print removido: [DEBUG] lanche_interno_siisp soma_positivos
+		# print removido: [DEBUG] lanche_funcionario_siisp soma_positivos
+		# print removido: [DEBUG] jantar_interno_siisp soma_positivos
+		# print removido: [DEBUG] jantar_funcionario_siisp soma_positivos
 		desvio_total_produtos = (
 			soma_positivos(m.get('cafe_interno_siisp', [])) * get_preco('cafe', 'interno') +
 			soma_positivos(m.get('cafe_funcionario_siisp', [])) * get_preco('cafe', 'funcionario') +
@@ -1011,7 +1011,7 @@ def calcular_metricas_lotes(lotes, mapas):
 						quantidade = sum(int(x) if x is not None else 0 for x in m[field_name])
 						custo_mapa += quantidade * preco_unitario
 					except Exception:
-						print(f"[DEBUG] Erro ao somar {field_name} no mapa {lote_id}")
+						# print removido: [DEBUG] Erro ao somar ...
 						pass
 
 			# Calcular desvios baseado em discrepâncias SIISP

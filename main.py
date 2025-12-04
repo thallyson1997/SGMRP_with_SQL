@@ -321,8 +321,10 @@ def lote_detalhes(lote_id):
     from functions.unidades import Unidade
     unidades_lote = []
     if unidades_ids:
+        from flask import current_app
+        session = db.session
         for uid in unidades_ids:
-            unidade = Unidade.query.get(uid)
+            unidade = session.get(Unidade, uid)
             if unidade:
                 unidades_lote.append(unidade.nome)
 
@@ -335,12 +337,82 @@ def api_adicionar_dados():
     # Endpoint para adicionar dados de mapas via API
     try:
         data = request.get_json(force=True, silent=True)
+
+        # --- Validação ANTES de salvar no banco ---
+        lote_id = None
+        if isinstance(data, dict):
+            lote_id = data.get('lote_id')
+        data_inicio = None
+        data_fim = None
+        if lote_id:
+            try:
+                from functions.models import Lote
+                session_db = db.session
+                lote = session_db.get(Lote, lote_id)
+                if lote:
+                    data_inicio = getattr(lote, 'data_inicio', None)
+                    data_fim = getattr(lote, 'data_fim', None)
+            except Exception as e:
+                print(f"[DEBUG] Erro ao buscar lote: {e}")
+        mes = data.get('mes')
+        ano = data.get('ano')
+        # num_dias só pode ser calculado corretamente após o processamento dos dados (salvar_mapas_raw)
+        print(f"🔍 DEBUG Adicionar_Dados: lote_id={lote_id}, data_inicio={data_inicio}, data_fim={data_fim}, mes={mes}, ano={ano}")
+
+        # Validar se o mês/ano do mapa está dentro do período do lote
+        periodo_invalido = False
+        msg_erro_periodo = None
+        if data_inicio and data_fim and mes and ano:
+            try:
+                # Considera o primeiro e último dia do mês informado
+                data_mapa_inicio = datetime(int(ano), int(mes), 1)
+                ultimo_dia = calendar.monthrange(int(ano), int(mes))[1]
+                data_mapa_fim = datetime(int(ano), int(mes), ultimo_dia)
+                if data_mapa_fim < datetime.strptime(str(data_inicio), "%Y-%m-%d") or data_mapa_inicio > datetime.strptime(str(data_fim), "%Y-%m-%d"):
+                    periodo_invalido = True
+                    msg_erro_periodo = f"O mapa ({mes}/{ano}) está fora do período do lote ({data_inicio} a {data_fim}) e não será salvo."
+            except Exception as e:
+                print(f"[DEBUG] Erro ao validar período do mapa: {e}")
+
+        if periodo_invalido:
+            # Tenta calcular num_dias do registro processado, se possível
+            num_dias = 0
+            try:
+                registro_tmp = None
+                # Se já for possível processar os dados para contar os dias
+                campos_refeicoes = [
+                    'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+                    'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
+                ]
+                for campo in campos_refeicoes:
+                    vals = data.get(campo)
+                    if isinstance(vals, list):
+                        num_dias = max(num_dias, len(vals))
+            except Exception:
+                pass
+            print(f"❌ {msg_erro_periodo} num_dias={num_dias}")
+            return jsonify({'success': False, 'error': msg_erro_periodo}), 400
+
+        # --- Só salva se o período for válido ---
         res = salvar_mapas_raw(data)
         if res.get('success'):
             registro = res.get('registro') if res.get('registro') is not None else data
             extra_id = res.get('id')
             registros_processados = 0
             dias_esperados = 0
+            # Calcular num_dias real do registro processado
+            num_dias = 0
+            try:
+                campos_refeicoes = [
+                    'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+                    'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
+                ]
+                for campo in campos_refeicoes:
+                    vals = registro.get(campo)
+                    if isinstance(vals, list):
+                        num_dias = max(num_dias, len(vals))
+            except Exception:
+                pass
             try:
                 if isinstance(registro, dict):
                     registros_processados = int(registro.get('linhas') or 0)
@@ -348,6 +420,8 @@ def api_adicionar_dados():
             except Exception:
                 registros_processados = 0
                 dias_esperados = 0
+
+            print(f"🔍 DEBUG Adicionar_Dados: lote_id={lote_id}, data_inicio={data_inicio}, data_fim={data_fim}, mes={mes}, ano={ano}, num_dias={num_dias}")
 
             validacao = {
                 'valido': True,
