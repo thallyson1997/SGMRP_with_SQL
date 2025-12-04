@@ -340,22 +340,25 @@ def api_adicionar_dados():
 
         # --- Validação ANTES de salvar no banco ---
         lote_id = None
-        if isinstance(data, dict):
-            lote_id = data.get('lote_id')
         data_inicio = None
         data_fim = None
-        if lote_id:
-            try:
-                from functions.models import Lote
-                session_db = db.session
-                lote = session_db.get(Lote, lote_id)
-                if lote:
-                    data_inicio = getattr(lote, 'data_inicio', None)
-                    data_fim = getattr(lote, 'data_fim', None)
-            except Exception as e:
-                print(f"[DEBUG] Erro ao buscar lote: {e}")
-        mes = data.get('mes')
-        ano = data.get('ano')
+        mes = None
+        ano = None
+        if isinstance(data, dict):
+            lote_id = data.get('lote_id')
+            mes = data.get('mes')
+            ano = data.get('ano')
+            if lote_id:
+                try:
+                    from functions.models import Lote
+                    session_db = db.session
+                    lote = session_db.get(Lote, lote_id)
+                    if lote:
+                        data_inicio = getattr(lote, 'data_inicio', None)
+                        data_fim = getattr(lote, 'data_fim', None)
+                except Exception as e:
+                    print(f"[DEBUG] Erro ao buscar lote: {e}")
+            pass
         # num_dias só pode ser calculado corretamente após o processamento dos dados (salvar_mapas_raw)
         print(f"🔍 DEBUG Adicionar_Dados: lote_id={lote_id}, data_inicio={data_inicio}, data_fim={data_fim}, mes={mes}, ano={ano}")
 
@@ -394,13 +397,65 @@ def api_adicionar_dados():
             return jsonify({'success': False, 'error': msg_erro_periodo}), 400
 
         # --- Só salva se o período for válido ---
+        # Recorte dos dados do mapa para salvar apenas os dias dentro do contrato
+        if data_inicio and data_fim and mes and ano:
+            try:
+                # Converter datas para datetime
+                data_inicio_dt = datetime.strptime(str(data_inicio), "%Y-%m-%d")
+                data_fim_dt = datetime.strptime(str(data_fim), "%Y-%m-%d")
+                # Dias do mês do mapa
+                dias_do_mes = [datetime(int(ano), int(mes), d+1) for d in range(calendar.monthrange(int(ano), int(mes))[1])]
+                # Índices dos dias dentro do contrato
+                indices_validos = [i for i, dia in enumerate(dias_do_mes) if data_inicio_dt <= dia <= data_fim_dt]
+                print(f"[DEBUG] Dias do mês: {[d.strftime('%Y-%m-%d') for d in dias_do_mes]}")
+                print(f"[DEBUG] Índices válidos para contrato: {indices_validos}")
+                # Recortar arrays de refeições e datas
+                campos_refeicoes = [
+                    'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+                    'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
+                ]
+                for campo in campos_refeicoes:
+                    vals = data.get(campo)
+                    if isinstance(vals, list):
+                        recortado = [vals[i] for i in indices_validos]
+                        print(f"[DEBUG] {campo} original: {vals}")
+                        print(f"[DEBUG] {campo} recortado: {recortado}")
+                        data[campo] = recortado
+                # Recortar campo 'datas' se existir
+                if 'datas' in data and isinstance(data['datas'], list):
+                    recortado_datas = [data['datas'][i] for i in indices_validos]
+                    print(f"[DEBUG] datas original: {data['datas']}")
+                    print(f"[DEBUG] datas recortado: {recortado_datas}")
+                    data['datas'] = recortado_datas
+            except Exception as e:
+                print(f"[DEBUG] Erro ao recortar dados do mapa: {e}")
+
+        # Inclui data_inicio e data_fim no dicionário para garantir recorte após parsing tabular
+        if data_inicio:
+            data['data_inicio'] = data_inicio
+        if data_fim:
+            data['data_fim'] = data_fim
+
+        # DEBUG: Mostrar os dados que serão salvos
+        print("[DEBUG] Dados que serão salvos no banco:")
+        campos_refeicoes = [
+            'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+            'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario', 'dados_siisp'
+        ]
+        for campo in campos_refeicoes:
+            vals = data.get(campo)
+            if isinstance(vals, list):
+                print(f"  {campo}: {vals}")
+        if 'datas' in data and isinstance(data['datas'], list):
+            print(f"  datas: {data['datas']}")
+
         res = salvar_mapas_raw(data)
         if res.get('success'):
             registro = res.get('registro') if res.get('registro') is not None else data
             extra_id = res.get('id')
             registros_processados = 0
             dias_esperados = 0
-            # Calcular num_dias real do registro processado
+            # Calcular num_dias real do registro recortado
             num_dias = 0
             try:
                 campos_refeicoes = [
@@ -408,7 +463,7 @@ def api_adicionar_dados():
                     'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
                 ]
                 for campo in campos_refeicoes:
-                    vals = registro.get(campo)
+                    vals = data.get(campo)
                     if isinstance(vals, list):
                         num_dias = max(num_dias, len(vals))
             except Exception:

@@ -561,6 +561,30 @@ def salvar_mapas_raw(payload):
 								entry['datas'] = datas
 							except Exception:
 								pass
+					# --- Recorte dos arrays após parsing tabular ---
+					# Só recorta se houver data_inicio/data_fim, mes, ano
+					data_inicio = entry.get('data_inicio')
+					data_fim = entry.get('data_fim')
+					mes = entry.get('mes')
+					ano = entry.get('ano')
+					if data_inicio and data_fim and mes and ano:
+						try:
+							data_inicio_dt = datetime.strptime(str(data_inicio), "%Y-%m-%d")
+							data_fim_dt = datetime.strptime(str(data_fim), "%Y-%m-%d")
+							dias_do_mes = [datetime(int(ano), int(mes), d+1) for d in range(calendar.monthrange(int(ano), int(mes))[1])]
+							indices_validos = [i for i, dia in enumerate(dias_do_mes) if data_inicio_dt <= dia <= data_fim_dt]
+							campos_refeicoes = [
+								'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+								'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario', 'dados_siisp'
+							]
+							for campo in campos_refeicoes:
+								vals = entry.get(campo)
+								if isinstance(vals, list):
+									entry[campo] = [vals[i] for i in indices_validos]
+							if 'datas' in entry and isinstance(entry['datas'], list):
+								entry['datas'] = [entry['datas'][i] for i in indices_validos]
+						except Exception as e:
+							print(f"[DEBUG] Erro ao recortar arrays após parsing tabular: {e}")
 				if used_text_key:
 					try:
 						entry.pop(used_text_key, None)
@@ -568,48 +592,68 @@ def salvar_mapas_raw(payload):
 						pass
 			mapa = Mapa.query.filter_by(mes=mes, ano=ano, unidade=unidade, lote_id=lote_id).first()
 			mapa_data = {}
-			dias_do_mes = 31
-			try:
-				if mes and ano:
-					dias_do_mes = calendar.monthrange(int(ano), int(mes))[1]
-			except Exception:
-				dias_do_mes = 31
-			# Preencher dados_siisp corretamente (parse string if needed)
-			dados_siisp = entry.get('dados_siisp')
-			if isinstance(dados_siisp, str):
-				# Tentar parsear como texto tabular (igual ao siisp.py)
-				parsed_siisp = parse_texto_tabular(dados_siisp)
-				if parsed_siisp.get('ok') and 'coluna_0' in parsed_siisp.get('colunas', {}):
-					dados_siisp = parsed_siisp['colunas']['coluna_0']
-				else:
-					dados_siisp = [0] * dias_do_mes
-			elif not isinstance(dados_siisp, list):
-				dados_siisp = [0] * dias_do_mes
-			mapa_data['dados_siisp'] = json.dumps(dados_siisp)
 
-			# Preencher campos de refeições
+			# Usar o tamanho real dos arrays recortados
 			meal_fields = [
 				'cafe_interno', 'cafe_funcionario',
 				'almoco_interno', 'almoco_funcionario',
 				'lanche_interno', 'lanche_funcionario',
 				'jantar_interno', 'jantar_funcionario'
 			]
+			# Descobrir o tamanho real dos dados (prioridade: primeiro campo de refeição válido, depois dados_siisp, depois datas)
+			tamanho_real = None
 			for field in meal_fields:
 				val = entry.get(field)
 				if isinstance(val, list):
+					tamanho_real = len(val)
+					break
+			if tamanho_real is None:
+				dados_siisp = entry.get('dados_siisp')
+				if isinstance(dados_siisp, list):
+					tamanho_real = len(dados_siisp)
+			if tamanho_real is None:
+				datas = entry.get('datas')
+				if isinstance(datas, list):
+					tamanho_real = len(datas)
+			if tamanho_real is None:
+				tamanho_real = 0
+
+			# Preencher dados_siisp corretamente (parse string if needed)
+			dados_siisp = entry.get('dados_siisp')
+			if isinstance(dados_siisp, str):
+				parsed_siisp = parse_texto_tabular(dados_siisp)
+				if parsed_siisp.get('ok') and 'coluna_0' in parsed_siisp.get('colunas', {}):
+					dados_siisp = parsed_siisp['colunas']['coluna_0']
+				else:
+					dados_siisp = [0] * tamanho_real
+			elif not isinstance(dados_siisp, list):
+				dados_siisp = [0] * tamanho_real
+			elif len(dados_siisp) != tamanho_real:
+				# Ajusta para o tamanho correto
+				dados_siisp = dados_siisp[:tamanho_real]
+			mapa_data['dados_siisp'] = json.dumps(dados_siisp)
+
+			# Preencher campos de refeições
+			for field in meal_fields:
+				val = entry.get(field)
+				if isinstance(val, list):
+					if len(val) != tamanho_real:
+						val = val[:tamanho_real]
 					mapa_data[field] = json.dumps(val)
 				else:
-					mapa_data[field] = json.dumps([0] * dias_do_mes)
+					mapa_data[field] = json.dumps([0] * tamanho_real)
 
 			# Calcular *_siisp = campo - dados_siisp
 			for field in meal_fields:
 				campo = json.loads(mapa_data[field])
-				siisp = [campo[i] - dados_siisp[i] if i < len(campo) and i < len(dados_siisp) else 0 for i in range(dias_do_mes)]
+				siisp = [campo[i] - dados_siisp[i] if i < len(campo) and i < len(dados_siisp) else 0 for i in range(tamanho_real)]
 				mapa_data[f'{field}_siisp'] = json.dumps(siisp)
 
 			# Preencher datas
 			datas = entry.get('datas')
 			if isinstance(datas, list):
+				if len(datas) != tamanho_real:
+					datas = datas[:tamanho_real]
 				mapa_data['datas'] = json.dumps(datas)
 			else:
 				mapa_data['datas'] = json.dumps([])
