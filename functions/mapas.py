@@ -60,9 +60,9 @@ def _get_lote_data_inicio(lote_id):
 	try:
 		from .models import Lote
 		lote = Lote.query.get(int(lote_id))
-		if lote and lote.data_contrato:
+		if lote and lote.data_inicio:
 			try:
-				return datetime.strptime(lote.data_contrato, '%Y-%m-%d')
+				return datetime.strptime(lote.data_inicio, '%Y-%m-%d')
 			except Exception:
 				return None
 		return None
@@ -84,9 +84,9 @@ def _get_lote_data_fim(lote_id):
 	try:
 		from .models import Lote
 		lote = Lote.query.get(int(lote_id))
-		if lote and lote.data_contrato:
+		if lote and lote.data_fim:
 			try:
-				return datetime.strptime(lote.data_contrato, '%Y-%m-%d')
+				return datetime.strptime(lote.data_fim, '%Y-%m-%d')
 			except Exception:
 				return None
 		return None
@@ -426,13 +426,16 @@ def _save_mapas_partitioned(mapas_list, mes, ano):
 		for mapa_data in mapas_list:
 			mapa = Mapa.query.filter_by(mes=mes, ano=ano, unidade=mapa_data.get('unidade'), lote_id=mapa_data.get('lote_id')).first()
 			if mapa:
-				# Atualiza
+				# Atualiza sempre com o valor do dicionário, serializando listas
 				for k, v in mapa_data.items():
 					if hasattr(mapa, k):
-						setattr(mapa, k, json.dumps(v) if isinstance(v, list) else v)
+						if isinstance(v, list):
+							setattr(mapa, k, json.dumps(v))
+						else:
+							setattr(mapa, k, v)
 				mapa.atualizado_em = datetime.now().isoformat()
 			else:
-				# Cria novo
+				# Cria novo registro, serializando listas
 				novo_mapa = Mapa(**{k: json.dumps(v) if isinstance(v, list) else v for k, v in mapa_data.items() if hasattr(Mapa, k)})
 				db.session.add(novo_mapa)
 		db.session.commit()
@@ -562,29 +565,32 @@ def salvar_mapas_raw(payload):
 							except Exception:
 								pass
 					# --- Recorte dos arrays após parsing tabular ---
-					# Só recorta se houver data_inicio/data_fim, mes, ano
-					data_inicio = entry.get('data_inicio')
-					data_fim = entry.get('data_fim')
-					mes = entry.get('mes')
-					ano = entry.get('ano')
-					if data_inicio and data_fim and mes and ano:
-						try:
-							data_inicio_dt = datetime.strptime(str(data_inicio), "%Y-%m-%d")
-							data_fim_dt = datetime.strptime(str(data_fim), "%Y-%m-%d")
-							dias_do_mes = [datetime(int(ano), int(mes), d+1) for d in range(calendar.monthrange(int(ano), int(mes))[1])]
-							indices_validos = [i for i, dia in enumerate(dias_do_mes) if data_inicio_dt <= dia <= data_fim_dt]
-							campos_refeicoes = [
-								'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
-								'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario', 'dados_siisp'
-							]
-							for campo in campos_refeicoes:
-								vals = entry.get(campo)
-								if isinstance(vals, list):
-									entry[campo] = [vals[i] for i in indices_validos]
-							if 'datas' in entry and isinstance(entry['datas'], list):
-								entry['datas'] = [entry['datas'][i] for i in indices_validos]
-						except Exception as e:
-							print(f"[DEBUG] Erro ao recortar arrays após parsing tabular: {e}")
+						# Só recorta se houver data_inicio/data_fim, mes, ano
+						data_inicio = entry.get('data_inicio')
+						data_fim = entry.get('data_fim')
+						mes = entry.get('mes')
+						ano = entry.get('ano')
+						if data_inicio and data_fim and mes and ano:
+							try:
+								data_inicio_dt = datetime.strptime(str(data_inicio), "%Y-%m-%d")
+								data_fim_dt = datetime.strptime(str(data_fim), "%Y-%m-%d")
+								dias_do_mes = [datetime(int(ano), int(mes), d+1) for d in range(calendar.monthrange(int(ano), int(mes))[1])]
+								indices_validos = [i for i, dia in enumerate(dias_do_mes) if data_inicio_dt <= dia <= data_fim_dt]
+								campos_refeicoes = [
+									'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
+									'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
+								]
+								for campo in campos_refeicoes:
+									vals = entry.get(campo)
+									if isinstance(vals, list):
+										entry[campo] = [vals[i] for i in indices_validos]
+								# Recortar dados_siisp usando os mesmos índices válidos, mesmo se já for lista
+								if 'dados_siisp' in entry and isinstance(entry['dados_siisp'], list):
+									entry['dados_siisp'] = [entry['dados_siisp'][i] for i in indices_validos if i < len(entry['dados_siisp'])]
+								if 'datas' in entry and isinstance(entry['datas'], list):
+									entry['datas'] = [entry['datas'][i] for i in indices_validos if i < len(entry['datas'])]
+							except Exception as e:
+								print(f"[DEBUG] Erro ao recortar arrays após parsing tabular: {e}")
 				if used_text_key:
 					try:
 						entry.pop(used_text_key, None)
@@ -604,17 +610,23 @@ def salvar_mapas_raw(payload):
 			tamanho_real = None
 			for field in meal_fields:
 				val = entry.get(field)
-				if isinstance(val, list):
+				if isinstance(val, list) and len(val) > 0:
 					tamanho_real = len(val)
 					break
-			if tamanho_real is None:
+			if tamanho_real is None or tamanho_real == 0:
 				dados_siisp = entry.get('dados_siisp')
-				if isinstance(dados_siisp, list):
+				if isinstance(dados_siisp, list) and len(dados_siisp) > 0:
 					tamanho_real = len(dados_siisp)
-			if tamanho_real is None:
+			if tamanho_real is None or tamanho_real == 0:
 				datas = entry.get('datas')
-				if isinstance(datas, list):
+				if isinstance(datas, list) and len(datas) > 0:
 					tamanho_real = len(datas)
+			# Se ainda for None ou zero, usa o número de dias do mês
+			if (tamanho_real is None or tamanho_real == 0) and mes and ano:
+				try:
+					tamanho_real = calendar.monthrange(int(ano), int(mes))[1]
+				except Exception:
+					tamanho_real = 0
 			if tamanho_real is None:
 				tamanho_real = 0
 
@@ -625,12 +637,22 @@ def salvar_mapas_raw(payload):
 				if parsed_siisp.get('ok') and 'coluna_0' in parsed_siisp.get('colunas', {}):
 					dados_siisp = parsed_siisp['colunas']['coluna_0']
 				else:
-					dados_siisp = [0] * tamanho_real
-			elif not isinstance(dados_siisp, list):
+					dados_siisp = None
+			# Garante que dados_siisp seja sempre uma lista de zeros se estiver vazio ou não for lista
+			if not isinstance(dados_siisp, list) or len(dados_siisp) == 0:
 				dados_siisp = [0] * tamanho_real
+			# Se por algum motivo ainda estiver vazio, força preenchimento
+			if isinstance(dados_siisp, list) and len(dados_siisp) == 0 and tamanho_real > 0:
+				dados_siisp = [0] * tamanho_real
+			# Se houver indices_validos, recorta usando eles; senão, recorta para o tamanho real
+			if 'indices_validos' in locals() and isinstance(indices_validos, list) and len(indices_validos) == tamanho_real:
+				dados_siisp = [dados_siisp[i] for i in indices_validos if i < len(dados_siisp)]
 			elif len(dados_siisp) != tamanho_real:
-				# Ajusta para o tamanho correto
 				dados_siisp = dados_siisp[:tamanho_real]
+			# Força preenchimento com zeros se ainda estiver vazio
+			if isinstance(dados_siisp, list) and len(dados_siisp) == 0 and tamanho_real > 0:
+				dados_siisp = [0] * tamanho_real
+			print(f"[DEBUG] dados_siisp a salvar: {dados_siisp}, tamanho_real: {tamanho_real}")
 			mapa_data['dados_siisp'] = json.dumps(dados_siisp)
 
 			# Preencher campos de refeições
@@ -663,7 +685,9 @@ def salvar_mapas_raw(payload):
 				if field in mapa_data:
 					continue
 				val = entry.get(field)
-				if val is not None:
+				if isinstance(val, list):
+					mapa_data[field] = json.dumps(val)
+				elif val is not None:
 					mapa_data[field] = val
 				elif field in ['linhas', 'colunas_count', 'lote_id', 'mes', 'ano']:
 					mapa_data[field] = 0

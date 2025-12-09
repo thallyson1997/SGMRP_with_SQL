@@ -1202,7 +1202,7 @@
             
             // Auto-fechar após tempo determinado
             if (autoClose) {
-                const duration = type === 'error' ? 8000 : 5000; // Erros ficam mais tempo
+                const duration = 60000; // Todas notificações ficam 1 minuto
                 setTimeout(() => {
                     closeNotification(notification.querySelector('.notification-close'));
                 }, duration);
@@ -2720,7 +2720,7 @@
                     // Recarregar página com filtros aplicados para a unidade e período recém-adicionados
                     setTimeout(() => {
                         window.location.href = `?unidade=${encodeURIComponent(unidade)}&mes=${mes}&ano=${ano}`;
-                    }, 1500);
+                    }, 1000); // 1 segundo para garantir que a notificação fique visível
                     
                     console.log('✅ Dados salvos:', data.registro);
                 } else {

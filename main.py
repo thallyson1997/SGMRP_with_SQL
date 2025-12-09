@@ -396,8 +396,10 @@ def api_adicionar_dados():
             print(f"❌ {msg_erro_periodo} num_dias={num_dias}")
             return jsonify({'success': False, 'error': msg_erro_periodo}), 400
 
+
         # --- Só salva se o período for válido ---
         # Recorte dos dados do mapa para salvar apenas os dias dentro do contrato
+        num_dias_validos = None
         if data_inicio and data_fim and mes and ano:
             try:
                 # Converter datas para datetime
@@ -409,6 +411,7 @@ def api_adicionar_dados():
                 indices_validos = [i for i, dia in enumerate(dias_do_mes) if data_inicio_dt <= dia <= data_fim_dt]
                 print(f"[DEBUG] Dias do mês: {[d.strftime('%Y-%m-%d') for d in dias_do_mes]}")
                 print(f"[DEBUG] Índices válidos para contrato: {indices_validos}")
+                num_dias_validos = len(indices_validos)
                 # Recortar arrays de refeições e datas
                 campos_refeicoes = [
                     'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
@@ -430,11 +433,34 @@ def api_adicionar_dados():
             except Exception as e:
                 print(f"[DEBUG] Erro ao recortar dados do mapa: {e}")
 
+        # Preencher dados_siisp com zeros se não recebido
+        if 'dados_siisp' not in data or not isinstance(data.get('dados_siisp'), list):
+            # Tenta usar o número de dias válidos, senão tenta pelo campo 'datas', senão calcula pelo mês
+            if num_dias_validos is not None:
+                data['dados_siisp'] = [0] * num_dias_validos
+            elif 'datas' in data and isinstance(data['datas'], list):
+                data['dados_siisp'] = [0] * len(data['datas'])
+            elif mes and ano:
+                dias_mes = calendar.monthrange(int(ano), int(mes))[1]
+                data['dados_siisp'] = [0] * dias_mes
+
         # Inclui data_inicio e data_fim no dicionário para garantir recorte após parsing tabular
-        if data_inicio:
-            data['data_inicio'] = data_inicio
-        if data_fim:
-            data['data_fim'] = data_fim
+
+        # Garante que data_inicio/data_fim estejam no dicionário para debug
+        if lote_id:
+            try:
+                from functions.models import Lote
+                session_db = db.session
+                lote = session_db.get(Lote, lote_id)
+                if lote:
+                    di = getattr(lote, 'data_inicio', None)
+                    df = getattr(lote, 'data_fim', None)
+                    if di:
+                        data['data_inicio'] = di
+                    if df:
+                        data['data_fim'] = df
+            except Exception:
+                pass
 
         # DEBUG: Mostrar os dados que serão salvos
         print("[DEBUG] Dados que serão salvos no banco:")
@@ -458,14 +484,9 @@ def api_adicionar_dados():
             # Calcular num_dias real do registro recortado
             num_dias = 0
             try:
-                campos_refeicoes = [
-                    'cafe_interno', 'cafe_funcionario', 'almoco_interno', 'almoco_funcionario',
-                    'lanche_interno', 'lanche_funcionario', 'jantar_interno', 'jantar_funcionario'
-                ]
-                for campo in campos_refeicoes:
-                    vals = data.get(campo)
-                    if isinstance(vals, list):
-                        num_dias = max(num_dias, len(vals))
+                datas = data.get('datas')
+                if isinstance(datas, list):
+                    num_dias = len(datas)
             except Exception:
                 pass
             try:
@@ -491,7 +512,7 @@ def api_adicionar_dados():
             }
 
             # Calcular estatísticas
-            dias_salvos = registros_processados
+            dias_salvos = num_dias
             total_refeicoes = 0
             if isinstance(registro, dict):
                 meal_fields = []
@@ -530,23 +551,34 @@ def api_entrada_manual():
         dados_preparados = preparar_dados_entrada_manual(data)
         if not dados_preparados.get('success'):
             return jsonify({'success': False, 'error': dados_preparados.get('error', 'Erro ao preparar dados')}), 200
-        
+
         res = salvar_mapas_raw(dados_preparados['data'])
-        
+
         if res.get('success'):
             registro = res.get('registro') if res.get('registro') is not None else dados_preparados['data']
             extra_id = res.get('id')
-            
+
             reordenar_registro_mapas(extra_id)
-            
+
             # Usar 'linhas' que reflete os dados realmente salvos (após filtragem)
             # Se 'linhas' não existir, usar o tamanho do array 'datas'
             dias_salvos = int(registro.get('linhas', 0))
             if dias_salvos == 0 and 'datas' in registro:
                 dias_salvos = len(registro.get('datas', []))
-            
-            print(f"🔍 DEBUG entrada-manual: linhas={registro.get('linhas')}, len(datas)={len(registro.get('datas', []))}, dias_salvos={dias_salvos}")
-            
+
+            # Mensagem de debug padronizada
+            lote_id = data.get('lote_id')
+            mes = data.get('mes')
+            ano = data.get('ano')
+            # Buscar datas de contrato usando funções utilitárias
+            from functions.mapas import _get_lote_data_inicio, _get_lote_data_fim
+            data_inicio = _get_lote_data_inicio(lote_id) if lote_id else None
+            data_fim = _get_lote_data_fim(lote_id) if lote_id else None
+            # Formatar datas para exibir apenas YYYY-MM-DD
+            data_inicio_str = data_inicio.strftime('%Y-%m-%d') if data_inicio else None
+            data_fim_str = data_fim.strftime('%Y-%m-%d') if data_fim else None
+            print(f"🔍 DEBUG Entrada Manual: lote_id={lote_id}, data_inicio={data_inicio_str}, data_fim={data_fim_str}, mes={mes}, ano={ano}, num_dias={dias_salvos}")
+
             # Calcular total de refeições
             meal_fields = [
                 'cafe_interno', 'cafe_funcionario',
@@ -558,7 +590,7 @@ def api_entrada_manual():
             for field in meal_fields:
                 if field in registro and isinstance(registro[field], list):
                     total_refeicoes += sum(int(x) if x is not None else 0 for x in registro[field])
-            
+
             validacao = {
                 'valido': True,
                 'refeicoes': {
@@ -567,7 +599,7 @@ def api_entrada_manual():
                 },
                 'mensagem_geral': 'Dados salvos via entrada manual'
             }
-            
+
             estatisticas = {
                 'registros_processados': dias_salvos,
                 'total_refeicoes': total_refeicoes
