@@ -53,11 +53,23 @@ def listar_lotes():
 	return [lote_to_dict(l) for l in lotes]
 
 def deletar_lote(lote_id, db):
-	"""Deleta um lote pelo ID."""
+	"""Deleta um lote pelo ID e todos os seus mapas e unidades relacionados."""
 	lote = db.session.query(Lote).filter_by(id=lote_id).first()
 	if lote:
+		# Importar os modelos necessários
+		from .models import Mapa, Unidade
+		
+		# Excluir todos os mapas relacionados ao lote
+		mapas_deletados = db.session.query(Mapa).filter_by(lote_id=lote_id).delete()
+		
+		# Excluir todas as unidades relacionadas ao lote
+		unidades_deletadas = db.session.query(Unidade).filter_by(lote_id=lote_id).delete()
+		
+		# Excluir o lote
 		db.session.delete(lote)
 		db.session.commit()
+		
+		print(f"[DEBUG] Lote {lote_id} excluído: {mapas_deletados} mapas e {unidades_deletadas} unidades removidos")
 		return True
 	return False
 

@@ -434,7 +434,9 @@ def api_adicionar_dados():
                 print(f"[DEBUG] Erro ao recortar dados do mapa: {e}")
 
         # Preencher dados_siisp com zeros se não recebido
-        if 'dados_siisp' not in data or not isinstance(data.get('dados_siisp'), list):
+        # Verifica se dados_siisp não está presente OU está vazio (mas não sobrescreve se for string)
+        dados_siisp_presente = 'dados_siisp' in data and data.get('dados_siisp') not in [None, '', []]
+        if not dados_siisp_presente:
             # Tenta usar o número de dias válidos, senão tenta pelo campo 'datas', senão calcula pelo mês
             if num_dias_validos is not None:
                 data['dados_siisp'] = [0] * num_dias_validos
@@ -443,6 +445,8 @@ def api_adicionar_dados():
             elif mes and ano:
                 dias_mes = calendar.monthrange(int(ano), int(mes))[1]
                 data['dados_siisp'] = [0] * dias_mes
+        else:
+            print(f"[DEBUG] SIISP recebido (tipo: {type(data.get('dados_siisp'))}): {data.get('dados_siisp')[:100] if isinstance(data.get('dados_siisp'), str) else data.get('dados_siisp')}")
 
         # Inclui data_inicio e data_fim no dicionário para garantir recorte após parsing tabular
 

@@ -997,6 +997,8 @@ def calcular_metricas_lotes(lotes, mapas):
 					continue
 			return total
 
+		# Inicializar precos com dict vazio por padrão
+		precos = {}
 		for l_temp in lotes:
 			try:
 				if int(l_temp.get('id')) == lote_id:
